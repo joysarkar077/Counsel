@@ -10,6 +10,7 @@ export interface IUser extends Document {
   publicKey: string;
   encryptedPrivateKey: string;
   role: 'client' | 'lawyer' | 'admin' | 'super_admin';
+  isActive: boolean;
   createdAt: Date;
 }
 
@@ -51,6 +52,10 @@ const UserSchema: Schema = new Schema({
     type: String,
     enum: ['client', 'lawyer', 'admin', 'super_admin'],
     default: 'client',
+  },
+  isActive: {
+    type: Boolean,
+    default: true, // false for invited users until they accept
   },
   createdAt: {
     type: Date,
