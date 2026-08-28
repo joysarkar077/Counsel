@@ -1,4 +1,6 @@
+'use client';
 import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import styles from './layout.module.css';
 
 export default function DashboardLayout({
@@ -6,6 +8,18 @@ export default function DashboardLayout({
 }: {
   children: React.ReactNode;
 }) {
+  const router = useRouter();
+
+  const handleLogout = async () => {
+    try {
+      await fetch('/api/auth/logout', { method: 'POST' });
+      // Clear any client-side session state here if needed in the future
+      router.push('/login');
+    } catch (err) {
+      console.error('Logout failed', err);
+    }
+  };
+
   return (
     <div className={styles.layout}>
       <aside className={styles.sidebar}>
@@ -48,6 +62,17 @@ export default function DashboardLayout({
             </svg>
             Settings
           </Link>
+          
+          <div className={styles.spacer}></div>
+          
+          <button onClick={handleLogout} className={`${styles.navLink} ${styles.logoutBtn}`}>
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.navIcon}>
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"></path>
+              <polyline points="16 17 21 12 16 7"></polyline>
+              <line x1="21" y1="12" x2="9" y2="12"></line>
+            </svg>
+            Sign Out
+          </button>
         </nav>
       </aside>
       <main className={styles.mainContent}>
