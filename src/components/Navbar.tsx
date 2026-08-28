@@ -5,7 +5,11 @@ import styles from './Navbar.module.css';
 
 export default function Navbar() {
   const pathname = usePathname();
-  const isAuthPage = pathname === '/login' || pathname === '/register';
+  const isAuthPage = 
+    pathname === '/login' || 
+    pathname === '/register' || 
+    pathname === '/verify-2fa' || 
+    pathname.startsWith('/dashboard');
 
   if (isAuthPage) return null;
 
