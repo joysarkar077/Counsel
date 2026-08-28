@@ -13,12 +13,12 @@ import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypt
  */
 export async function POST(
   req: Request,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
     await dbConnect();
 
-    const { token } = params;
+    const { token } = await params;
     const { password } = await req.json();
 
     if (!token || !password) {
@@ -92,12 +92,12 @@ export async function POST(
  */
 export async function GET(
   _req: Request,
-  { params }: { params: { token: string } }
+  { params }: { params: Promise<{ token: string }> }
 ) {
   try {
     await dbConnect();
 
-    const { token } = params;
+    const { token } = await params;
     const serverSecret = process.env.SERVER_SECRET || 'dev-secret-change-in-production';
     const tokenHash = crypto.createHmac('sha256', serverSecret).update(token).digest('hex');
 
