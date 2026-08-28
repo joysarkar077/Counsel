@@ -2,6 +2,7 @@ import mongoose, { Document, Model, Schema } from 'mongoose';
 
 export interface IUser extends Document {
   username_enc: string;
+  emailHash: string;
   email_enc: string;
   contact_enc: string;
   passwordHash: string;
@@ -16,6 +17,11 @@ const UserSchema: Schema = new Schema({
   username_enc: {
     type: String,
     required: true,
+  },
+  emailHash: {
+    type: String,
+    required: true,
+    unique: true,
   },
   email_enc: {
     type: String,
