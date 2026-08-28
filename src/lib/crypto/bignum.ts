@@ -1,13 +1,12 @@
+import crypto from 'crypto';
+
 /**
  * Big number utilities using JavaScript's native BigInt for cryptographic operations.
+ * Uses crypto.randomBytes for secure entropy — NOT a crypto library, just randomness.
  */
 
 /**
  * Computes (base^exponent) mod modulus using the square-and-multiply algorithm.
- * @param base 
- * @param exponent 
- * @param modulus 
- * @returns BigInt result
  */
 export function modExp(base: bigint, exponent: bigint, modulus: bigint): bigint {
   if (modulus === 1n) return 0n;
@@ -24,16 +23,29 @@ export function modExp(base: bigint, exponent: bigint, modulus: bigint): bigint 
 }
 
 /**
+ * Computes gcd(a, b) using the Euclidean algorithm.
+ */
+export function gcd(a: bigint, b: bigint): bigint {
+  while (b > 0n) {
+    [a, b] = [b, a % b];
+  }
+  return a;
+}
+
+/**
  * Computes the modular inverse of a mod m using the Extended Euclidean Algorithm.
- * Returns x such that (a * x) % m == 1
- * Throws an error if inverse doesn't exist (i.e. a and m are not coprime).
+ * Returns x such that (a * x) % m == 1.
+ * Throws an error if the inverse doesn't exist (i.e. a and m are not coprime).
  */
 export function modInverse(a: bigint, m: bigint): bigint {
-  let [m0, x0, x1] = [m, 0n, 1n];
+  const m0 = m;
+  let x0 = 0n;
+  let x1 = 1n;
+
   if (m === 1n) return 0n;
 
   while (a > 1n) {
-    let q = a / m;
+    const q = a / m;
     let t = m;
     m = a % m;
     a = t;
@@ -42,23 +54,22 @@ export function modInverse(a: bigint, m: bigint): bigint {
     x1 = t;
   }
 
-  if (x1 < 0n) {
-    x1 += m0;
-  }
+  if (x1 < 0n) x1 += m0;
   return x1;
 }
 
 /**
  * Miller-Rabin primality test.
  * @param n Number to test
- * @param k Number of iterations (accuracy)
- * @returns true if probably prime, false if composite
+ * @param k Number of witness iterations (40 is very conservative)
+ * @returns true if probably prime, false if definitely composite
  */
 export function isProbablePrime(n: bigint, k: number = 40): boolean {
-  if (n <= 1n) return false;
-  if (n <= 3n) return true;
+  if (n < 2n) return false;
+  if (n === 2n || n === 3n) return true;
   if (n % 2n === 0n) return false;
 
+  // Write n-1 as 2^r * d
   let d = n - 1n;
   let r = 0n;
   while (d % 2n === 0n) {
@@ -66,67 +77,51 @@ export function isProbablePrime(n: bigint, k: number = 40): boolean {
     r++;
   }
 
-  // A simple pseudo-random generator for BigInt in range [2, n-2]
-  const getRandomBase = (max: bigint): bigint => {
-    // Generate a string of random bytes, convert to BigInt and modulo
-    // We can use Math.random() for base choice since it's just Miller-Rabin bases
-    // but in a real crypto scenario we'd use crypto.getRandomValues
-    let hex = '0x';
-    for (let i = 0; i < 8; i++) {
-      hex += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
-    }
-    const num = BigInt(hex);
-    return (num % (max - 3n)) + 2n;
+  // Generate a cryptographically secure random BigInt in [2, n-2]
+  const getSecureRandomBase = (max: bigint): bigint => {
+    const byteLen = Math.ceil(max.toString(16).length / 2) + 1;
+    let num: bigint;
+    do {
+      const buf = crypto.randomBytes(byteLen);
+      num = BigInt('0x' + buf.toString('hex'));
+    } while (num < 2n || num > max - 2n);
+    return num;
   };
 
-  for (let i = 0; i < k; i++) {
-    const a = getRandomBase(n);
+  witness: for (let i = 0; i < k; i++) {
+    const a = getSecureRandomBase(n);
     let x = modExp(a, d, n);
 
     if (x === 1n || x === n - 1n) continue;
 
-    let continueLoop = false;
     for (let j = 0n; j < r - 1n; j++) {
       x = modExp(x, 2n, n);
-      if (x === n - 1n) {
-        continueLoop = true;
-        break;
-      }
+      if (x === n - 1n) continue witness;
     }
 
-    if (!continueLoop) return false;
+    return false;
   }
 
   return true;
 }
 
 /**
- * Generates a random large prime of specified bit length.
- * Note: Uses a basic PRNG approach here which should be replaced
- * with a cryptographically secure random source if strictly needed.
- * But for scratch implementation, Math.random based BigInt generation works.
+ * Generates a cryptographically random large prime of specified bit length.
+ * Uses crypto.randomBytes for secure entropy (not the crypto RSA/ECC operations).
  */
 export function generateLargePrime(bits: number): bigint {
   const bytes = Math.ceil(bits / 8);
-  
-  const generateCandidate = (): bigint => {
-    // Ideally we would use crypto.getRandomValues, but in Node
-    // we can just use crypto module. Since we cannot use crypto module for RSA/ECC,
-    // we can use standard crypto for random bytes generation if allowed, 
-    // otherwise Math.random.
-    let hex = '0x1'; // Ensure top bit is 1 to get correct bit length
-    for (let i = 0; i < bytes - 1; i++) {
-      hex += Math.floor(Math.random() * 256).toString(16).padStart(2, '0');
-    }
-    let candidate = BigInt(hex);
-    if (candidate % 2n === 0n) {
-      candidate += 1n;
-    }
-    return candidate;
-  };
 
   while (true) {
-    const candidate = generateCandidate();
+    const buf = crypto.randomBytes(bytes);
+
+    // Set the top bit to ensure full bit-length
+    buf[0] |= 0x80;
+    // Set the bottom bit to ensure it's odd
+    buf[bytes - 1] |= 0x01;
+
+    const candidate = BigInt('0x' + buf.toString('hex'));
+
     if (isProbablePrime(candidate)) {
       return candidate;
     }
