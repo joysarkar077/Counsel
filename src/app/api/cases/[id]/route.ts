@@ -1,12 +1,13 @@
 import { NextResponse } from 'next/server';
-import { dbConnect } from '@/lib/db/mongoose';
+import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 
-export async function GET(req: Request, { params }: { params: { id: string } }) {
+export async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
+    const { id } = await params;
     
-    const caseItem = await Case.findById(params.id);
+    const caseItem = await Case.findById(id);
     if (!caseItem) {
       return NextResponse.json({ success: false, error: 'Case not found' }, { status: 404 });
     }
@@ -17,14 +18,15 @@ export async function GET(req: Request, { params }: { params: { id: string } }) 
   }
 }
 
-export async function PATCH(req: Request, { params }: { params: { id: string } }) {
+export async function PATCH(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
     const body = await req.json();
+    const { id } = await params;
     
     const updatedCase = await Case.findByIdAndUpdate(
-      params.id,
-      { $set: body, $push: { timeline: { action: 'Case Updated', actorId: body.actorId || params.id } } },
+      id,
+      { $set: body, $push: { timeline: { action: 'Case Updated', actorId: body.actorId || id } } },
       { new: true }
     );
 

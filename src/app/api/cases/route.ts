@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { dbConnect } from '@/lib/db/mongoose';
+import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { AuditLog } from '@/models/AuditLog';
 import { generateHMAC } from '@/lib/crypto/hmac';
