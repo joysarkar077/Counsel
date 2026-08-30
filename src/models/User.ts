@@ -1,18 +1,7 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Model, Schema } from 'mongoose';
+import type { IUser } from '@/types/user';
 
-export interface IUser extends Document {
-  username_enc: string;
-  emailHash: string;
-  email_enc: string;
-  contact_enc: string;
-  passwordHash: string;
-  salt: string;
-  publicKey: string;
-  encryptedPrivateKey: string;
-  role: 'client' | 'lawyer' | 'admin' | 'super_admin';
-  isActive: boolean;
-  createdAt: Date;
-}
+export type { IUser };
 
 const UserSchema: Schema = new Schema({
   username_enc: {

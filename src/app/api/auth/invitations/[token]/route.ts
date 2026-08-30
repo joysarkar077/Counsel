@@ -1,8 +1,8 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import dbConnect from '@/lib/db/mongoose';
-import { Invitation } from '@/lib/models/Invitation';
-import { User } from '@/lib/models/User';
+import { Invitation } from '../../../../../models/Invitation';
+import { User } from '../../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
 import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
 

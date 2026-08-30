@@ -48,9 +48,14 @@ replacing hand-rolled crypto with libraries.
 - `lib/crypto/*` never imports from `lib/db` or `lib/models` — stays framework/storage-agnostic.
 - `@/` alias outside current folder; relative imports within a feature folder only.
 
+## Types Directory
+- All TypeScript interfaces and shared types live in `src/types/`, one file per domain (e.g. `src/types/user.ts`, `src/types/case.ts`).
+- Model files (`src/models/*.ts`) import their document interface from `src/types/` and re-export it for convenience — they do not define interfaces inline.
+- Component prop types (`<ComponentName>Props`) stay colocated in their component file unless shared across multiple components, in which case they move to `src/types/`.
+
 ## Component Decomposition
 - `page.tsx` is wiring only: data fetch, auth/redirect, layout composition. No form logic, no multi-step state.
-- Route-specific components → colocated `_components/`. Promote to shared `components/` only once a 2nd route needs it. Generic UI primitives → `components/ui/`, no app logic inside.
+- All route-specific components should be placed in `src/components/`, grouped into separate folders for each page or module (e.g. `src/components/dashboard/cases/`). Generic UI primitives → `components/ui/`, no app logic inside.
 - Split a component when it has >1 responsibility (render + edit + delete-confirm = 3 components), not by line count.
 - Isolate `"use client"` to the smallest interactive leaf — don't make a whole tree client for one button.
 - Presentational components take props only; no `fetch`/DB imports — data comes from a container/page.

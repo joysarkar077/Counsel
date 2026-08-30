@@ -1,5 +1,5 @@
 import dbConnect from '@/lib/db/mongoose';
-import { User } from '@/lib/models/User';
+import { User } from '../../../../models/User';
 import { NextResponse } from 'next/server';
 
 export async function PUT(req: Request) {
