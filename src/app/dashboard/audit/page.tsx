@@ -1,7 +1,5 @@
 'use client';
-import styles from './audit.module.css';
 
-// Dummy data to visualize the hash-chained audit log that Farjana will build
 const DUMMY_LOGS = [
   {
     id: 'log_004',
@@ -44,43 +42,49 @@ const DUMMY_LOGS = [
 export default function AuditLogPage() {
   return (
     <div className="animate-fade-up">
-      <div className={styles.header}>
+      <div className="mb-8 flex justify-between items-end flex-wrap gap-4">
         <div>
-          <h1 className={styles.title}>Audit Log</h1>
-          <p className={styles.subtitle}>Immutable, hash-chained record of all critical system actions.</p>
+          <h1 className="text-[1.8rem] font-extrabold text-navy-deepest tracking-tight mb-1">Audit Log</h1>
+          <p className="text-[0.95rem] text-text-muted">Immutable, hash-chained record of all critical system actions.</p>
         </div>
-        <div className={styles.integrityBadge}>
-          <span className={styles.pulse}></span>
+        <div className="flex items-center gap-2 bg-emerald-500/10 text-emerald-600 py-2 px-4 rounded-full text-[0.85rem] font-bold uppercase tracking-wider">
+          <span className="w-2 h-2 rounded-full bg-emerald-500 shadow-[0_0_0_rgba(16,185,129,0.4)] animate-[pulse_2s_infinite]"></span>
           Chain Integrity: Verified
         </div>
       </div>
 
-      <div className={`card ${styles.tableCard}`}>
-        <div className={styles.tableWrapper}>
-          <table className={styles.table}>
+      <div className="bg-bg-card border border-border shadow-sm rounded-xl overflow-hidden p-0">
+        <div className="overflow-x-auto">
+          <table className="w-full border-collapse text-left">
             <thead>
               <tr>
-                <th>Timestamp</th>
-                <th>Actor (Blind Index)</th>
-                <th>Action</th>
-                <th>IP Address</th>
-                <th>Integrity</th>
+                <th className="py-4 px-6 bg-navy-core/5 text-text-muted text-[0.8rem] font-bold uppercase tracking-wider border-b border-border">Timestamp</th>
+                <th className="py-4 px-6 bg-navy-core/5 text-text-muted text-[0.8rem] font-bold uppercase tracking-wider border-b border-border">Actor (Blind Index)</th>
+                <th className="py-4 px-6 bg-navy-core/5 text-text-muted text-[0.8rem] font-bold uppercase tracking-wider border-b border-border">Action</th>
+                <th className="py-4 px-6 bg-navy-core/5 text-text-muted text-[0.8rem] font-bold uppercase tracking-wider border-b border-border">IP Address</th>
+                <th className="py-4 px-6 bg-navy-core/5 text-text-muted text-[0.8rem] font-bold uppercase tracking-wider border-b border-border">Integrity</th>
               </tr>
             </thead>
             <tbody>
               {DUMMY_LOGS.map((log) => (
-                <tr key={log.id}>
-                  <td className={styles.timestamp}>
+                <tr key={log.id} className="last:border-b-0 border-b border-border">
+                  <td className="py-4 px-6 text-[0.85rem] text-text-secondary">
                     {new Date(log.timestamp).toLocaleString()}
                   </td>
-                  <td className={styles.mono}>{log.userBlindIndex}</td>
-                  <td>
-                    <span className={styles.actionBadge}>{log.action}</span>
+                  <td className="py-4 px-6 text-[0.85rem] text-navy-core font-mono bg-navy-core/5 py-1 px-2 rounded w-fit my-3 ml-6 block">
+                    {log.userBlindIndex}
                   </td>
-                  <td className={styles.mono}>{log.ip}</td>
-                  <td>
+                  <td className="py-4 px-6">
+                    <span className="bg-bg-page border border-border py-1 px-2.5 rounded-full text-[0.75rem] font-bold text-navy-deepest">
+                      {log.action}
+                    </span>
+                  </td>
+                  <td className="py-4 px-6 text-[0.85rem] text-navy-core font-mono bg-navy-core/5 py-1 px-2 rounded w-fit my-3 ml-6 block">
+                    {log.ip}
+                  </td>
+                  <td className="py-4 px-6">
                     {log.integrity === 'valid' ? (
-                      <span className={styles.statusValid}>
+                      <span className="flex items-center gap-1.5 text-emerald-500 font-semibold text-[0.85rem]">
                         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="14" height="14">
                           <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"></path>
                           <polyline points="22 4 12 14.01 9 11.01"></polyline>
@@ -88,7 +92,7 @@ export default function AuditLogPage() {
                         Valid
                       </span>
                     ) : (
-                      <span className={styles.statusBroken}>Broken</span>
+                      <span className="text-red-500 font-semibold text-[0.85rem]">Broken</span>
                     )}
                   </td>
                 </tr>
@@ -97,7 +101,7 @@ export default function AuditLogPage() {
           </table>
         </div>
         
-        <div className={styles.tableFooter}>
+        <div className="py-4 px-6 bg-bg-page border-t border-border text-[0.85rem] text-text-muted text-center">
           <p>Displaying latest 4 records. Hash chain verification is performed on the server.</p>
         </div>
       </div>

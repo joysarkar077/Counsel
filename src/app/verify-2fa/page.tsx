@@ -2,7 +2,6 @@
 import { useState, useRef } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
-import styles from './verify2fa.module.css';
 
 export default function Verify2FAPage() {
   const router = useRouter();
@@ -12,11 +11,10 @@ export default function Verify2FAPage() {
   const inputs = useRef<(HTMLInputElement | null)[]>([]);
 
   const handleChange = (value: string, index: number) => {
-    if (!/^\d?$/.test(value)) return; // digits only
+    if (!/^\d?$/.test(value)) return;
     const newCode = [...code];
     newCode[index] = value;
     setCode(newCode);
-    // Auto-advance
     if (value && index < 5) {
       inputs.current[index + 1]?.focus();
     }
@@ -48,7 +46,6 @@ export default function Verify2FAPage() {
     setError('');
 
     try {
-      // TODO (Farjana - TOTP): Wire up POST /api/auth/verify-2fa once TOTP module is ready
       const res = await fetch('/api/auth/verify-2fa', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -71,23 +68,23 @@ export default function Verify2FAPage() {
   };
 
   return (
-    <div className={styles.wrapper}>
-      <div className={`card animate-fade-up ${styles.card}`}>
-        <div className={styles.iconWrap}>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className={styles.icon}>
+    <div className="min-h-[calc(100vh-68px)] flex justify-center items-center p-6 bg-bg-page">
+      <div className="bg-bg-card border border-border shadow-sm rounded-xl animate-fade-up max-w-[440px] w-full py-12 px-10 flex flex-col items-center">
+        <div className="bg-navy-core/10 rounded-full p-4.5 mb-6">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-navy-core p-1">
             <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
         </div>
 
-        <h1 className={styles.title}>Two-Factor Verification</h1>
-        <p className={styles.subtitle}>
+        <h1 className="text-[1.5rem] font-extrabold text-text-primary tracking-tight mb-2 text-center">Two-Factor Verification</h1>
+        <p className="text-[0.9rem] text-text-muted text-center leading-relaxed mb-7">
           Enter the 6-digit code from your authenticator app.
         </p>
 
-        {error && <div className="alert-error">{error}</div>}
+        {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100 w-full">{error}</div>}
 
-        <form onSubmit={handleSubmit} className={styles.form}>
-          <div className={styles.otpRow} onPaste={handlePaste}>
+        <form onSubmit={handleSubmit} className="w-full flex flex-col gap-5">
+          <div className="flex gap-2.5 justify-center" onPaste={handlePaste}>
             {code.map((digit, i) => (
               <input
                 key={i}
@@ -96,7 +93,7 @@ export default function Verify2FAPage() {
                 inputMode="numeric"
                 maxLength={1}
                 value={digit}
-                className={styles.otpInput}
+                className="w-[52px] h-[60px] border-[1.5px] border-border rounded-lg text-center text-[1.5rem] font-bold text-navy-deepest bg-bg-card outline-none transition-all focus:border-navy-core focus:ring-[3px] focus:ring-navy-core/10 disabled:opacity-60"
                 onChange={(e) => handleChange(e.target.value, i)}
                 onKeyDown={(e) => handleKeyDown(e, i)}
                 disabled={loading}
@@ -106,13 +103,13 @@ export default function Verify2FAPage() {
             ))}
           </div>
 
-          <button type="submit" className="btn-primary" disabled={loading || code.join('').length < 6}>
+          <button type="submit" className="w-full bg-navy-core text-white font-semibold py-3 px-4 rounded-lg hover:bg-navy-deepest transition-colors disabled:opacity-70" disabled={loading || code.join('').length < 6}>
             {loading ? 'Verifying…' : 'Verify Code'}
           </button>
         </form>
 
-        <div className={styles.footer}>
-          <Link href="/login" className={styles.back}>← Back to Sign In</Link>
+        <div className="mt-6 text-center">
+          <Link href="/login" className="text-[0.88rem] text-text-muted hover:text-navy-core transition-colors">← Back to Sign In</Link>
         </div>
       </div>
     </div>
