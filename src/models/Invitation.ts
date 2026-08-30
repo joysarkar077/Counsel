@@ -1,15 +1,7 @@
-import mongoose, { Document, Model, Schema } from 'mongoose';
+import mongoose, { Model, Schema } from 'mongoose';
+import type { IInvitation } from '@/types/invitation';
 
-export interface IInvitation extends Document {
-  email: string;
-  role: 'lawyer' | 'admin';
-  caseId?: string;
-  tokenHash: string;
-  invitedBy: string; // userId of the admin who sent it
-  status: 'pending' | 'accepted' | 'expired';
-  expiresAt: Date;
-  createdAt: Date;
-}
+export type { IInvitation };
 
 const InvitationSchema: Schema = new Schema({
   email: { type: String, required: true },

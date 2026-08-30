@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
-import { User } from '@/lib/models/User';
+import { User } from '../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
 import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
 
@@ -46,7 +46,7 @@ export async function POST(req: Request) {
       passwordHash,
       salt,
       publicKey: JSON.stringify(publicKey),
-      encryptedPrivateKey: privateKey.d, 
+      encryptedPrivateKey: privateKey.d,
       role: 'client'
     });
 

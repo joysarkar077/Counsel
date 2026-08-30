@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
-import { User } from '@/lib/models/User';
+import { User } from '../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
 import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
 

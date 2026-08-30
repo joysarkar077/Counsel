@@ -1,7 +1,7 @@
 import { NextResponse } from 'next/server';
 import crypto from 'crypto';
 import dbConnect from '@/lib/db/mongoose';
-import { Invitation } from '@/lib/models/Invitation';
+import { Invitation } from '../../../../models/Invitation';
 
 /**
  * POST /api/admin/invitations
