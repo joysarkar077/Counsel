@@ -11,5 +11,6 @@ export interface IUser extends Document {
   encryptedPrivateKey: string;
   role: 'client' | 'lawyer' | 'admin' | 'super_admin';
   isActive: boolean;
+  totpSecret?: string;
   createdAt: Date;
 }

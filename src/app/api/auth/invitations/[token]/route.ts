@@ -1,10 +1,10 @@
 import { NextResponse } from 'next/server';
-import crypto from 'crypto';
 import dbConnect from '@/lib/db/mongoose';
 import { Invitation } from '../../../../../models/Invitation';
 import { User } from '../../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
-import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
+import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
+import { hmacSha256 } from '@/lib/crypto/hmac';
 
 /**
  * POST /api/auth/invitations/[token]/accept
@@ -27,7 +27,7 @@ export async function POST(
 
     // Recompute HMAC of the submitted token and look it up
     const serverSecret = process.env.SERVER_SECRET || 'dev-secret-change-in-production';
-    const tokenHash = crypto.createHmac('sha256', serverSecret).update(token).digest('hex');
+    const tokenHash = hmacSha256(Buffer.from(serverSecret, 'utf-8'), Buffer.from(token, 'utf-8')).toString('hex');
 
     const invitation = await Invitation.findOne({ tokenHash });
 
@@ -58,8 +58,7 @@ export async function POST(
     const email_enc = encrypt(invitation.email, publicKey);
     const contact_enc = encrypt('', publicKey); // Can be filled later in profile settings
 
-    const salt = generateSalt();
-    const passwordHash = hashPassword(password, salt);
+    const { hash: passwordHash, salt } = hashPassword(password);
 
     await User.create({
       username_enc,
@@ -99,7 +98,7 @@ export async function GET(
 
     const { token } = await params;
     const serverSecret = process.env.SERVER_SECRET || 'dev-secret-change-in-production';
-    const tokenHash = crypto.createHmac('sha256', serverSecret).update(token).digest('hex');
+    const tokenHash = hmacSha256(Buffer.from(serverSecret, 'utf-8'), Buffer.from(token, 'utf-8')).toString('hex');
 
     const invitation = await Invitation.findOne({ tokenHash });
 

@@ -1,10 +1,11 @@
 import { NextResponse } from 'next/server';
-import { cookies } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
 import { encrypt } from '@/lib/crypto/ecc';
 import { computeHmac } from '@/lib/crypto/hmacStub';
+import { appendEntry } from '@/lib/audit/log';
+import { requireRole } from '@/lib/auth/rbac';
 
 /**
  * POST /api/cases
@@ -15,17 +16,11 @@ import { computeHmac } from '@/lib/crypto/hmacStub';
  * - Attaches an HMAC fingerprint to the stored record (tamper detection)
  * - Returns the new case id on success
  */
-export async function POST(req: Request) {
+const postHandler = async function POST(req: Request) {
   try {
     await dbConnect();
 
-    // --- Auth guard: read session from cookie ---
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('userId')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthenticated' }, { status: 401 });
-    }
+    const userId = (req as any).userId;
 
     // --- Load user to access their ECC public key ---
     const user = await User.findById(userId);
@@ -107,6 +102,8 @@ export async function POST(req: Request) {
     });
 
     await newCase.save();
+    
+    await appendEntry(userId, 'CASE_CREATED', `Created case ${newCase.caseId}`);
 
     return NextResponse.json({ success: true, data: { id: newCase._id } }, { status: 201 });
   } catch (error) {
@@ -114,6 +111,8 @@ export async function POST(req: Request) {
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export const POST = requireRole(['client', 'lawyer', 'admin', 'super_admin'])(postHandler);
 
 /**
  * GET /api/cases
@@ -123,16 +122,11 @@ export async function POST(req: Request) {
  * - lawyer  → cases they are assigned to
  * - admin / super_admin → all cases
  */
-export async function GET() {
+const getHandler = async function GET(req: Request) {
   try {
     await dbConnect();
-
-    const cookieStore = await cookies();
-    const userId = cookieStore.get('userId')?.value;
-
-    if (!userId) {
-      return NextResponse.json({ success: false, error: 'Unauthenticated' }, { status: 401 });
-    }
+    
+    const userId = (req as any).userId;
 
     const user = await User.findById(userId);
     if (!user) {
@@ -157,3 +151,5 @@ export async function GET() {
     return NextResponse.json({ success: false, error: 'Internal Server Error' }, { status: 500 });
   }
 }
+
+export const GET = requireRole(['client', 'lawyer', 'admin', 'super_admin'])(getHandler);

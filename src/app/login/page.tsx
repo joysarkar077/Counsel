@@ -32,7 +32,9 @@ export default function LoginPage() {
 
       const result = await res.json();
 
-      if (result.role === 'admin' || result.role === 'super_admin') {
+      if (result.requires2FA) {
+        router.push('/verify-2fa');
+      } else if (result.role === 'admin' || result.role === 'super_admin') {
         router.push('/dashboard/admin');
       } else if (result.role === 'lawyer') {
         router.push('/dashboard/lawyer');

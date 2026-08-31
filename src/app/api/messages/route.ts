@@ -3,11 +3,14 @@ import dbConnect from '@/lib/db/mongoose';
 import { Message } from '@/models/Message';
 import { verifySignature } from '@/lib/crypto/ecdsa';
 import { generateHMAC } from '@/lib/crypto/hmac';
+import { requireRole } from '@/lib/auth/rbac';
+import { appendEntry } from '@/lib/audit/log';
 
-export async function POST(req: Request) {
+const postHandler = async function POST(req: Request) {
   try {
     await dbConnect();
     const body = await req.json();
+    const userId = (req as any).userId;
 
     // 1. Verify the ECDSA signature before accepting the message
     // In a real scenario, fetch the sender's public key from the DB first
@@ -27,6 +30,8 @@ export async function POST(req: Request) {
       integrityHash: generateHMAC('dummy_hmac_secret', body.ciphertext)
     });
 
+    await appendEntry(userId, 'MESSAGE_SENT', `Message sent in case ${body.caseId}`);
+
     return NextResponse.json({ success: true, data: newMessage }, { status: 201 });
   } catch (error: any) {
     console.error('Message Send Error:', error);
@@ -34,7 +39,9 @@ export async function POST(req: Request) {
   }
 }
 
-export async function GET(req: Request) {
+export const POST = requireRole(['client', 'lawyer', 'admin', 'super_admin'])(postHandler);
+
+const getHandler = async function GET(req: Request) {
   try {
     await dbConnect();
     
@@ -54,3 +61,5 @@ export async function GET(req: Request) {
     return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });
   }
 }
+
+export const GET = requireRole(['client', 'lawyer', 'admin', 'super_admin'])(getHandler);
