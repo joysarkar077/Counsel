@@ -2,6 +2,8 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, useParams } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function InviteAcceptPage() {
   const router = useRouter();
@@ -15,6 +17,7 @@ export default function InviteAcceptPage() {
   const [error, setError] = useState('');
   const [invalid, setInvalid] = useState(false);
 
+  // On load, verify the token and fetch invitation metadata
   useEffect(() => {
     if (!token) return;
     fetch(`/api/auth/invitations/${token}`)
@@ -66,97 +69,99 @@ export default function InviteAcceptPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
-      {/* Left branding panel */}
-      <div className="bg-navy-deepest flex flex-col justify-between py-12 px-14 relative overflow-hidden hidden md:flex">
-        <div className="absolute w-[400px] h-[400px] bg-gold/10 rounded-full -top-[100px] -right-[100px] pointer-events-none"></div>
-        <div className="absolute w-[300px] h-[300px] bg-navy-light/20 rounded-full -bottom-[80px] -left-[60px] pointer-events-none"></div>
-        
-        <Link href="/" className="flex items-center gap-2.5 z-10">
-          <span className="text-gold text-[1.15rem] font-extrabold flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-[22px] h-[22px] text-gold">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            Counsel
-          </span>
+    <div className="min-h-screen flex flex-col md:flex-row bg-white">
+      {/* Left: Branding Panel */}
+      <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 text-white flex-col justify-between p-12">
+        <Link href="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            C
+          </div>
+          <span className="font-bold tracking-tight text-lg">Counsel</span>
         </Link>
 
-        <div className="flex flex-col gap-4 z-10">
-          <h2 className="text-[2rem] font-extrabold text-white leading-[1.2] tracking-tight">
+        <div className="space-y-6">
+          <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1]">
             You've been<br />invited to Counsel.
           </h2>
-          <p className="text-[0.95rem] text-white/50 leading-relaxed">
-            Set a password to activate your {role} account.<br />
+          <p className="text-slate-400 text-lg leading-relaxed max-w-sm">
+            Set a password to activate your {role || 'account'}.<br />
             Your RSA keypair will be generated automatically.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2.5 z-10">
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             Invitation verified via HMAC
           </div>
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             RSA keypair generated on activation
           </div>
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
             Password never stored in plaintext
           </div>
         </div>
       </div>
 
-      {/* Right form panel */}
-      <div className="bg-bg-card flex flex-col justify-center items-center py-16 px-8 md:px-18 overflow-y-auto">
-        <div className="w-full max-w-[400px] animate-fade-up">
+      {/* Right: Form Panel */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
+        <div className="w-full max-w-md space-y-8 animate-fade-up py-8">
+          {/* Mobile brand fallback */}
+          <Link href="/" className="md:hidden flex items-center gap-2 mb-8 text-slate-900">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+              C
+            </div>
+            <span className="font-bold tracking-tight text-lg">Counsel</span>
+          </Link>
+
           {fetching ? (
-            <p className="text-text-muted text-center">Verifying invitation…</p>
+            <div className="text-center text-slate-500">Verifying invitation...</div>
           ) : invalid ? (
-            <div>
-              <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">This invitation link is invalid or has already been used.</div>
-              <Link href="/" className="mt-4 px-4 py-2 border border-border text-navy-core font-semibold rounded-lg hover:bg-navy-core hover:text-white transition-colors block text-center">Back to Home</Link>
+            <div className="space-y-6 text-center">
+              <div className="p-4 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-600 font-medium">
+                This invitation link is invalid or has already been used.
+              </div>
+              <Link href="/">
+                <Button variant="outline" className="mt-4">Back to Home</Button>
+              </Link>
             </div>
           ) : (
             <>
-              <div className="mb-9">
-                <h1 className="text-[1.7rem] font-extrabold text-text-primary tracking-tight mb-1.5">Activate your account</h1>
-                <p className="text-[0.9rem] text-text-muted">
-                  Invited as <strong className="font-semibold text-text-primary">{role}</strong> · {email}
+              <div className="space-y-2 text-center md:text-left">
+                <h1 className="text-3xl font-bold tracking-tight text-slate-900">Activate your account</h1>
+                <p className="text-slate-500">
+                  Invited as <strong className="text-slate-900">{role}</strong> · {email}
                 </p>
               </div>
 
-              {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">{error}</div>}
-
-              <form className="flex flex-col" onSubmit={handleSubmit} noValidate>
-                <div className="flex flex-col gap-1.5 mb-4">
-                  <label htmlFor="password" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">New Password</label>
-                  <input
-                    type="password"
-                    id="password"
-                    name="password"
-                    required
-                    placeholder="Create a strong password"
-                    disabled={loading}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-                  />
+              {error && (
+                <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-600 font-medium">
+                  {error}
                 </div>
-                <div className="flex flex-col gap-1.5 mb-4">
-                  <label htmlFor="confirm" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">Confirm Password</label>
-                  <input
-                    type="password"
-                    id="confirm"
-                    name="confirm"
-                    required
-                    placeholder="Repeat your password"
-                    disabled={loading}
-                    className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-                  />
+              )}
+
+              <form onSubmit={handleSubmit} noValidate className="space-y-5">
+                <div className="space-y-1.5">
+                  <label htmlFor="password" className="text-sm font-semibold text-slate-700">New Password</label>
+                  <Input type="password" id="password" name="password" required placeholder="Create a strong password" disabled={loading} />
+                </div>
+                <div className="space-y-1.5">
+                  <label htmlFor="confirm" className="text-sm font-semibold text-slate-700">Confirm Password</label>
+                  <Input type="password" id="confirm" name="confirm" required placeholder="Repeat your password" disabled={loading} />
                 </div>
 
-                <button type="submit" className="mt-2 bg-navy-core text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-navy-deepest transition-colors disabled:opacity-70" disabled={loading}>
-                  {loading ? 'Generating Keys & Activating…' : 'Activate Account'}
-                </button>
+                <Button type="submit" className="w-full mt-2" disabled={loading}>
+                  {loading ? (
+                    <span className="flex items-center gap-2">
+                      <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                      Generating Keys & Activating...
+                    </span>
+                  ) : (
+                    'Activate Account'
+                  )}
+                </Button>
               </form>
             </>
           )}

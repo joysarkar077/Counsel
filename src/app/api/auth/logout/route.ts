@@ -12,5 +12,7 @@ import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypt
 export async function POST() {
   // TODO (Sabid - Session): Delete the ECDSA-signed session token from the sessions collection.
   // For now, the client simply stops sending the token — logout is handled client-side.
-  return NextResponse.json({ message: 'Logged out successfully' }, { status: 200 });
+  const response = NextResponse.json({ message: 'Logged out successfully' }, { status: 200 });
+  response.cookies.delete('userId');
+  return response;
 }

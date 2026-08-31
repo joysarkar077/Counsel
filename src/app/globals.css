@@ -21,7 +21,6 @@
   --font-sans: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
 }
 @layer base {
-
   *,
   *::before,
   *::after {
@@ -35,22 +34,8 @@
   }
 
   body {
-    background-color: #F4F5F7;
-    color: #0A0E17;
+    @apply bg-slate-50 text-slate-900 min-h-screen antialiased;
     font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
-    min-height: 100vh;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-
-  a {
-    color: #2C5090;
-    text-decoration: none;
-    transition: color 0.2s ease;
-  }
-
-  a:hover {
-    color: #1B3A6B;
   }
 }
 
@@ -60,7 +45,6 @@
       opacity: 0;
       transform: translateY(16px);
     }
-
     to {
       opacity: 1;
       transform: translateY(0);
