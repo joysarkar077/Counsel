@@ -1,6 +1,6 @@
 # Counsel Project Status
 
-**Overall Project Progress: 50% 🟩🟩🟩🟩🟩⬜⬜⬜⬜⬜**
+**Overall Project Progress: 75% 🟩🟩🟩🟩🟩🟩🟩🟨⬜⬜**
 
 This document tracks the implemented features and the pending tasks required to complete the Counsel Secure Legal Case Management System. Tasks have been weighted to accurately reflect their contribution to the total project completion.
 
@@ -20,7 +20,7 @@ This document tracks the implemented features and the pending tasks required to 
 - **[x] Case Details**: Detailed case view (`/dashboard/cases/[id]`) with chronological timeline and party information.
 - **[x] Secure Chat**: End-to-end encrypted messaging interface (`/dashboard/cases/[id]/chat`) displaying signature verification badges.
 - **[x] Audit Log**: Immutable hash-chained audit log viewer (`/dashboard/audit`).
-- **[x] Frontend API Wiring & Demo Crypto**: (Jotee implemented this using built-in Web Crypto / Node Crypto libraries for now to test the UI. *Sabid and Prome must replace these placeholders with from-scratch algorithms later*).
+- **[x] Frontend API Wiring & Demo Crypto**: (Jotee implemented this using built-in Web Crypto / Node Crypto libraries for now to test the UI. *Prome has replaced the authentication/integrity placeholders with from-scratch algorithms; Sabid must still replace the ECC placeholders later*).
 
 ### 3. Backend & API Integration (20%)
 - **[x] Database Models**: Finalize Mongoose schemas for Users, Cases, Messages, and Audit Logs.
@@ -39,10 +39,10 @@ This document tracks the implemented features and the pending tasks required to 
 - **[ ] ECIES Encryption (5%)**: End-to-End encryption logic for case details and chat messages.
 - **[ ] ECDSA Signatures (5%)**: Digital signature generation and verification for message non-repudiation (the "Signed" badge in chat).
 
-### 5. Authentication, Integrity & Identity (Farjana) (25%)
+### 5. Authentication, Integrity & Identity (Prome) (25%)
 *Constraint: Must be implemented from scratch without third-party cryptographic libraries.*
-- **[ ] PBKDF2 Password Hashing (5%)**: Custom implementation of key derivation for secure password storage.
-- **[ ] TOTP Generation & Verification (5%)**: Time-based One-Time Password algorithm for the 2FA login step.
-- **[ ] HMAC Data Integrity (5%)**: Hash-based Message Authentication Code implementation to prevent database tampering.
-- **[ ] Hash-Chained Audit Logs (5%)**: Backend logic to cryptographically link audit log entries (preventing deletion/modification of history).
-- **[ ] Role-Based Access Control (RBAC) (5%)**: Backend middleware to strictly enforce boundaries between Admin, Lawyer, and Client routes.
+- **[x] PBKDF2 Password Hashing (5%)**: Custom implementation of key derivation for secure password storage.
+- **[x] TOTP Generation & Verification (5%)**: Time-based One-Time Password algorithm for the 2FA login step.
+- **[x] HMAC Data Integrity (5%)**: Hash-based Message Authentication Code implementation to prevent database tampering.
+- **[x] Hash-Chained Audit Logs (5%)**: Backend logic to cryptographically link audit log entries (preventing deletion/modification of history).
+- **[x] Role-Based Access Control (RBAC) (5%)**: Backend middleware to strictly enforce boundaries between Admin, Lawyer, and Client routes.

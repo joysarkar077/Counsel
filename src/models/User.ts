@@ -46,6 +46,9 @@ const UserSchema: Schema = new Schema({
     type: Boolean,
     default: true, // false for invited users until they accept
   },
+  totpSecret: {
+    type: String,
+  },
   createdAt: {
     type: Date,
     default: Date.now,

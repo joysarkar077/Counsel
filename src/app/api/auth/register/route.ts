@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
-import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
+import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
+import { appendEntry } from '@/lib/audit/log';
 
 export async function POST(req: Request) {
   try {
@@ -31,8 +32,8 @@ export async function POST(req: Request) {
     const contact_enc = encrypt(contact || '', publicKey);
 
     // 3. Hash Password
-    const salt = generateSalt();
-    const passwordHash = hashPassword(password, salt);
+    // our from-scratch PBKDF2 hashPassword automatically generates the salt
+    const { hash: passwordHash, salt } = hashPassword(password);
 
     // 4. Save to DB
     // Note: privateKey.d should be symmetrically encrypted with a key derived from the password.
@@ -47,10 +48,13 @@ export async function POST(req: Request) {
       salt,
       publicKey: JSON.stringify(publicKey),
       encryptedPrivateKey: privateKey.d,
-      role: 'client'
+      role: 'client',
+      isActive: true,
     });
 
     await newUser.save();
+
+    await appendEntry(newUser.id, 'USER_REGISTERED', `User registered with email hash ${emailHash}`);
 
     return NextResponse.json({ message: 'User registered successfully' }, { status: 201 });
   } catch (error: any) {

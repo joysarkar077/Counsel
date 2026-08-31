@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
 import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
-import { hashPassword, generateSalt, generateEmailBlindIndex } from '@/lib/crypto/kdfStub';
+import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
+import { appendEntry } from '@/lib/audit/log';
 
 /**
  * Seed script to create the Super Admin account.
@@ -33,8 +34,7 @@ export async function POST(req: Request) {
     const username_enc = encrypt(username, publicKey);
     const email_enc = encrypt(email, publicKey);
     const contact_enc = encrypt('', publicKey);
-    const salt = generateSalt();
-    const passwordHash = hashPassword(password, salt);
+    const { hash: passwordHash, salt } = hashPassword(password);
 
     await User.create({
       username_enc,
@@ -48,6 +48,12 @@ export async function POST(req: Request) {
       role: 'super_admin',
       isActive: true,
     });
+
+    // We don't have a known user ID yet since it's just created, we'll use 'SYSTEM' or the new user's ID
+    const superAdmin = await User.findOne({ emailHash });
+    if (superAdmin) {
+      await appendEntry(superAdmin.id, 'SYSTEM_SEEDED', 'Super Admin account seeded');
+    }
 
     return NextResponse.json({ message: 'Super Admin seeded successfully.' }, { status: 201 });
   } catch (error: any) {

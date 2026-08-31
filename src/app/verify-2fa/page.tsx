@@ -52,12 +52,18 @@ export default function Verify2FAPage() {
         body: JSON.stringify({ otp }),
       });
 
+      const result = await res.json();
       if (!res.ok) {
-        const data = await res.json();
-        throw new Error(data.error || 'Invalid code');
+        throw new Error(result.error || 'Invalid code');
       }
 
-      router.push('/dashboard');
+      if (result.role === 'admin' || result.role === 'super_admin') {
+        router.push('/dashboard/admin');
+      } else if (result.role === 'lawyer') {
+        router.push('/dashboard/lawyer');
+      } else {
+        router.push('/dashboard');
+      }
     } catch (err: any) {
       setError(err.message);
       setCode(['', '', '', '', '', '']);
