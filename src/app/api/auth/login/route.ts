@@ -29,12 +29,21 @@ export async function POST(req: Request) {
 
     // 3. Login successful
     // At this point, in a full system, we would generate a session token (ECDSA signed)
-    return NextResponse.json({
+    const response = NextResponse.json({
       message: 'Login successful',
       role: user.role,
       // Returning public key so client can potentially encrypt messages
       publicKey: user.publicKey
     }, { status: 200 });
+
+    response.cookies.set('userId', user._id.toString(), {
+      httpOnly: true,
+      secure: process.env.NODE_ENV === 'production',
+      sameSite: 'lax',
+      path: '/'
+    });
+
+    return response;
 
   } catch (error: any) {
     console.error('Login error:', error);

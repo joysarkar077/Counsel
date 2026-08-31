@@ -2,6 +2,8 @@
 import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
 
 export default function RegisterPage() {
   const router = useRouter();
@@ -36,121 +38,126 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="grid grid-cols-1 md:grid-cols-2 min-h-screen">
-      {/* Left: Branding panel */}
-      <div className="bg-navy-deepest flex flex-col justify-between py-12 px-14 relative overflow-hidden hidden md:flex">
-        <div className="absolute w-[400px] h-[400px] bg-gold/10 rounded-full -top-[100px] -right-[100px] pointer-events-none"></div>
-        <div className="absolute w-[300px] h-[300px] bg-navy-light/20 rounded-full -bottom-[80px] -left-[60px] pointer-events-none"></div>
-        
-        <Link href="/" className="flex items-center gap-2.5 z-10">
-          <span className="text-gold text-[1.15rem] font-extrabold flex items-center gap-2">
-            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" className="w-[22px] h-[22px] text-gold">
-              <path strokeLinecap="round" strokeLinejoin="round" d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-            </svg>
-            Counsel
-          </span>
+    <div className="min-h-screen flex flex-col md:flex-row bg-white">
+      {/* Left: Branding Panel */}
+      <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 text-white flex-col justify-between p-12">
+        <Link href="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
+            C
+          </div>
+          <span className="font-bold tracking-tight text-lg">Counsel</span>
         </Link>
 
-        <div className="flex flex-col gap-4 z-10">
-          <h2 className="text-[2rem] font-extrabold text-white leading-[1.2] tracking-tight">
-            Start managing<br />cases securely.
+        <div className="space-y-6">
+          <h2 className="text-4xl lg:text-5xl font-extrabold tracking-tight leading-[1.1]">
+            Start your secure<br />case today.
           </h2>
-          <p className="text-[0.95rem] text-white/50 leading-relaxed">
-            Your account generates its own RSA keypair.<br />
-            Personal data is encrypted before it is stored.
+          <p className="text-slate-400 text-lg leading-relaxed max-w-sm">
+            Join the zero-trust platform designed for legal professionals and their clients.
           </p>
         </div>
 
-        <div className="flex flex-col gap-2.5 z-10">
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
-            RSA keypair generated on registration
+        <div className="space-y-4">
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            End-to-End Encryption
           </div>
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
-            Name, email & phone encrypted immediately
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            Role-Based Access Controls
           </div>
-          <div className="flex items-center gap-2.5 text-[0.85rem] text-white/55">
-            <span className="w-1.5 h-1.5 bg-gold rounded-full shrink-0" />
-            Password never stored in plaintext
+          <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
+            <span className="w-2 h-2 rounded-full bg-blue-500"></span>
+            Tamper-Evident Architecture
           </div>
         </div>
       </div>
 
-      {/* Right: Form panel */}
-      <div className="bg-bg-card flex flex-col justify-center items-center py-16 px-8 md:px-18 overflow-y-auto">
-        <div className="w-full max-w-[400px] animate-fade-up">
-          <div className="mb-9">
-            <h1 className="text-[1.7rem] font-extrabold text-text-primary tracking-tight mb-1.5">Create your account</h1>
-            <p className="text-[0.9rem] text-text-muted">All fields are encrypted before being saved.</p>
+      {/* Right: Form Panel */}
+      <div className="flex-1 flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
+        <div className="w-full max-w-md space-y-8 animate-fade-up py-8">
+          {/* Mobile brand fallback */}
+          <Link href="/" className="md:hidden flex items-center gap-2 mb-8 text-slate-900">
+            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
+              C
+            </div>
+            <span className="font-bold tracking-tight text-lg">Counsel</span>
+          </Link>
+
+          <div className="space-y-2 text-center md:text-left">
+            <h1 className="text-3xl font-bold tracking-tight text-slate-900">Create an account</h1>
+            <p className="text-slate-500">Enter your details to get started with Counsel.</p>
           </div>
 
-          {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100">{error}</div>}
+          {error && (
+            <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-sm text-rose-600 font-medium">
+              {error}
+            </div>
+          )}
 
-          <form className="flex flex-col" onSubmit={handleSubmit} noValidate>
-            <div className="flex flex-col gap-1.5 mb-4">
-              <label htmlFor="username" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">Full Name</label>
-              <input
-                type="text"
-                id="username"
-                name="username"
-                required
-                placeholder="Sajid Mahir"
-                disabled={loading}
-                autoComplete="name"
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5 mb-4">
-              <label htmlFor="email" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">Email Address</label>
-              <input
-                type="email"
-                id="email"
-                name="email"
-                required
-                placeholder="sajid.mahir@example.com"
-                disabled={loading}
-                autoComplete="email"
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5 mb-4">
-              <label htmlFor="contact" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">Phone Number</label>
-              <input
-                type="tel"
-                id="contact"
-                name="contact"
-                required
-                placeholder="+880 1711-234567"
-                disabled={loading}
-                autoComplete="tel"
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-              />
-            </div>
-            <div className="flex flex-col gap-1.5 mb-4">
-              <label htmlFor="password" className="text-[0.85rem] font-bold text-text-secondary uppercase tracking-wider">Password</label>
-              <input
-                type="password"
-                id="password"
-                name="password"
-                required
-                placeholder="Create a strong password"
-                disabled={loading}
-                autoComplete="new-password"
-                className="w-full px-4 py-2.5 border border-border rounded-lg bg-bg-page focus:border-navy-core focus:ring-1 focus:ring-navy-core outline-none transition-all disabled:opacity-50 text-text-primary"
-              />
+          <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-1.5">
+                <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">First Name</label>
+                <Input type="text" id="firstName" name="firstName" required disabled={loading} />
+              </div>
+              <div className="space-y-1.5">
+                <label htmlFor="lastName" className="text-sm font-semibold text-slate-700">Last Name</label>
+                <Input type="text" id="lastName" name="lastName" required disabled={loading} />
+              </div>
             </div>
 
-            <button type="submit" className="mt-2 bg-navy-core text-white font-semibold py-2.5 px-4 rounded-lg hover:bg-navy-deepest transition-colors disabled:opacity-70" disabled={loading}>
-              {loading ? 'Generating RSA Keys & Registering…' : 'Create Secure Account'}
-            </button>
+            <div className="space-y-1.5">
+              <label htmlFor="email" className="text-sm font-semibold text-slate-700">Email Address</label>
+              <Input type="email" id="email" name="email" required placeholder="name@example.com" disabled={loading} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="phone" className="text-sm font-semibold text-slate-700">Phone Number</label>
+              <Input type="tel" id="phone" name="phone" required placeholder="+880 1..." disabled={loading} />
+            </div>
+
+            <div className="space-y-1.5">
+              <label htmlFor="password" className="text-sm font-semibold text-slate-700">Password</label>
+              <Input type="password" id="password" name="password" required disabled={loading} />
+            </div>
+
+            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600 space-y-2">
+              <div className="font-semibold text-slate-800 flex items-center gap-2">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-emerald-600">
+                  <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                  <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                </svg>
+                Privacy Notice
+              </div>
+              <p>Your name, email, and phone number will be encrypted with RSA upon registration. Counsel staff cannot read your PII without authorized key access.</p>
+            </div>
+
+            <Button type="submit" className="w-full" disabled={loading}>
+              {loading ? (
+                <span className="flex items-center gap-2">
+                  <span className="w-4 h-4 rounded-full border-2 border-white/30 border-t-white animate-spin"></span>
+                  Creating Account...
+                </span>
+              ) : (
+                'Register Securely'
+              )}
+            </Button>
           </form>
 
-          <hr className="border-t border-border my-6" />
+          <div className="relative py-4">
+            <div className="absolute inset-0 flex items-center">
+              <div className="w-full border-t border-slate-200"></div>
+            </div>
+            <div className="relative flex justify-center text-sm">
+              <span className="px-2 bg-white text-slate-500">Already have an account?</span>
+            </div>
+          </div>
 
-          <div className="text-center text-[0.88rem] text-text-muted">
-            Already have an account?
-            <Link href="/login" className="text-navy-core font-semibold ml-1 hover:underline">Sign in</Link>
+          <div className="text-center">
+            <Link href="/login" className="text-sm font-semibold text-blue-600 hover:text-blue-700 hover:underline">
+              Sign in instead
+            </Link>
           </div>
         </div>
       </div>
