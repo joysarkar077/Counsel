@@ -24,10 +24,10 @@ Passwords are never stored in plaintext. They are hashed using a custom implemen
 ## 3. Two-Factor Authentication (OTP Phase)
 Once the password is verified, the user is not immediately logged in. They enter the 2FA phase:
 
-1. **Temporary Token**: A temporary, short-lived (10-minute) session token is generated. This token is signed with HMAC-SHA256 using `SERVER_SECRET` and stored in an HTTP-only cookie (`temp_auth_token`).
-2. **OTP Generation**: A 6-digit OTP is generated. To prevent the database from holding the plaintext OTP, it is hashed with SHA-256 and stored in the user document as `otpHash` alongside an expiration timestamp.
+1. **Redirection**: The NextAuth `CredentialsProvider` intentionally throws a `2FA_REQUIRED` error upon successful password verification, halting the initial login. The UI catches this and redirects the user to `/verify-2fa?email={blind-indexed-email}`.
+2. **OTP Generation**: A 6-digit OTP is generated during the first login step. To prevent the database from holding the plaintext OTP, it is hashed with SHA-256 and stored in the user document as `otpHash` alongside an expiration timestamp.
 3. **Email Delivery**: The plaintext OTP is emailed to the user via Nodemailer.
-4. **Verification**: The user submits the OTP to `/api/auth/verify-2fa`. The system verifies the `temp_auth_token` signature, hashes the submitted OTP, and compares it to the stored `otpHash` in constant time.
+4. **Verification**: The user submits the OTP to the second pass of the `CredentialsProvider` (with `is2FAPhase=true`). The system looks up the user via the email, hashes the submitted OTP, and compares it to the stored `otpHash` in constant time. If valid, NextAuth finalizes the sign-in.
 
 ## 4. Session Management (NextAuth / Auth.js)
 Upon successful 2FA verification, the session is established using **NextAuth (Auth.js)**. 

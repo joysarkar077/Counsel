@@ -68,8 +68,8 @@ Person B secures the bulk of the platform's data—the actual legal cases, notes
     *   Encrypt message bodies using ECIES.
     *   Apply RSA signatures (calling Person A's module) to prove message authorship.
 6.  **Session Management**
-    *   Implement ECDSA-signed cookies.
-    *   Develop session fingerprinting (e.g., tying sessions to devices/browsers) and expiry logic.
+    *   Integrate `next-auth` (Auth.js) for robust session management.
+    *   Wire up custom `CredentialsProvider` to our PBKDF2/TOTP flows.
 
 ### Specific Constraints for Person B
 *   **Curve Selection:** Strictly use the documented `secp256k1` curve; do not invent a custom curve.

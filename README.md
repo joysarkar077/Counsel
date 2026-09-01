@@ -43,7 +43,7 @@
 ### Cryptographic Security
 - **RSA (from scratch):** We built key generation using Miller-Rabin primality testing, modular exponentiation, and the Extended Euclidean Algorithm. This is used for PII encryption and digital signatures on state changes.
 - **ECC / ECIES (from scratch):** Features `secp256k1` curve point arithmetic (point add, double, scalar multiply) and is used for bulk content encryption like cases, notes, and messages.
-- **ECDSA (from scratch):** Used to sign session tokens to guarantee tamper-proof user sessions.
+- **NextAuth (Auth.js) Session Management:** Secure JWE session cookies handling authentication and authorization seamlessly across Edge middleware.
 - **HMAC (from scratch):** RFC 2104-compliant HMAC applied as a tamper-detection fingerprint on every single database record.
 - **Hash-Chained Audit Log:** Critical actions (like logins, viewing a case, or key rotation) are logged into a tamper-evident audit trail where each entry is mathematically linked to the one before it.
 
@@ -70,7 +70,7 @@
 | **Database** | MongoDB Atlas via Mongoose |
 | **Styling** | Tailwind CSS v4 |
 | **Font** | Plus Jakarta Sans (Google Fonts) |
-| **Crypto** | Custom RSA, ECC, HMAC, KDF, TOTP (all from scratch) |
+| **Crypto** | Custom RSA, ECC, HMAC, KDF, TOTP (from scratch) + NextAuth (Sessions) |
 | **Deployment** | Vercel-ready (verified production build) |
 
 ---
@@ -201,7 +201,7 @@ This project is a collaborative effort for **CSE447 — Cryptography**, Summer 2
 | Encrypted case content | ECC/ECIES encryption applied to all case titles, descriptions, notes, and messages |
 | Tamper detection | HMAC fingerprint on every database record |
 | Non-repudiation | RSA digital signatures on case state changes; ECDSA on messages |
-| Session security | ECDSA-signed cookies with device fingerprinting and expiry limits |
+| Session security | NextAuth (Auth.js) securely encrypted JWE cookies with expiration limits |
 | Audit trail | Hash-chained log so any deletion or modification breaks the chain |
 | RBAC | Client / Lawyer / Admin / Super Admin permission matrix |
 | All algorithms from scratch | We completely avoided `crypto.publicEncrypt`, `crypto.sign`, and `crypto.createHmac` for our core algorithms |

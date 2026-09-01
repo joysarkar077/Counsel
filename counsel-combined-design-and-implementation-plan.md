@@ -308,9 +308,9 @@ These are silent assumptions in the design that should be confirmed by the team 
 | All critical data encrypted at rest                      | Users, cases, notes, messages, keys, all stored as ciphertext              |
 | MAC (HMAC) for integrity                                 | Section 17, applied to every stored record                                 |
 | Only asymmetric encryption, no symmetric ciphers         | RSA and ECC only, throughout                                               |
-| Two distinct asymmetric algorithms, different jobs       | RSA for identity/signatures/key-wrap, ECC for bulk content/session signing |
+| Two distinct asymmetric algorithms, different jobs       | RSA for identity/signatures/key-wrap, ECC for bulk content                 |
 | RBAC                                                     | Client / Lawyer / Admin, Section 11                                        |
-| Secure session management                                | ECDSA-signed cookies, fingerprinting, expiry                               |
+| Secure session management                                | NextAuth (Auth.js) securely encrypted JWE cookies                          |
 | All algorithms implemented from scratch                  | No `crypto.publicEncrypt`/`sign`/`createHmac`, no npm crypto libraries     |
 
 ### 15. Number Theory Foundation (`bignum.ts`)
@@ -379,7 +379,7 @@ Since plaintext such as usernames and emails is longer than one block, split it 
 2. Derive the same keystream from `S'`
 3. `plaintext = ciphertext XOR keystream`
 
-**ECDSA (used for session token signing):**
+**ECDSA (used for signatures):**
 - Sign: pick random `k`, compute `R = k·G`, `r = R.x mod n`, `s = k⁻¹(hash(message) + r·d) mod n`, signature is `(r, s)`
 - Verify: using the signer's public key `Q`, recompute a point from `(r, s, hash(message))` and check it matches `r`
 
@@ -451,7 +451,7 @@ SHA-256 is used as the inner hash, which is allowed as a primitive since the HMA
 | 6   | RSA-signed case-status-change verification logic                                                           |
 | 7   | Bug fixing and writing the RSA section of the report                                                       |
 
-**Sabid Mahmud, ECC plus Content/Session** (self-contained, since ECC covers content encryption and session signing)
+**Sabid Mahmud, ECC plus Content** (self-contained, since ECC covers content encryption)
 
 | Day | Task                                                                                                                             |
 | --- | -------------------------------------------------------------------------------------------------------------------------------- |
@@ -460,7 +460,7 @@ SHA-256 is used as the inner hash, which is allowed as a primitive since the HMA
 | 4   | ECDSA sign/verify, with unit tests                                                                                               |
 | 5   | Cases module, create/view/edit with ECC-encrypted content and HMAC, calling Person C's `hmac.ts` once ready, stubbed until then  |
 | 6   | Messages module, send/view, ECC-encrypted body with RSA signature, calling Person A's sign/verify once ready, stubbed until then |
-| 7   | Session management, ECDSA-signed cookies, session fingerprinting, expiry logic                                                   |
+| 7   | Session management, integrated via NextAuth (Auth.js)                                                                            |
 
 **Farjana Sadia Prome, HMAC/KDF/TOTP plus Infrastructure/RBAC/Key Management/Audit** (fully independent low-level modules plus everything orchestrating A and B's output)
 
