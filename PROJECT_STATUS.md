@@ -45,4 +45,5 @@ This document tracks the implemented features and the pending tasks required to 
 - **[x] TOTP Generation & Verification (5%)**: Time-based One-Time Password algorithm for the 2FA login step.
 - **[x] HMAC Data Integrity (5%)**: Hash-based Message Authentication Code implementation to prevent database tampering.
 - **[x] Hash-Chained Audit Logs (5%)**: Backend logic to cryptographically link audit log entries (preventing deletion/modification of history).
-- **[x] Role-Based Access Control (RBAC) (5%)**: Backend middleware to strictly enforce boundaries between Admin, Lawyer, and Client routes.
+- **[x] Role-Based Access Control (RBAC) (5%)**: Edge middleware intercepts requests and enforces boundaries using `x-user-role` headers injected from the NextAuth JWT.
+- **[x] NextAuth Session Management**: Integrated `next-auth` replacing the manual JWT cookies, utilizing a custom two-step `CredentialsProvider` for our from-scratch PBKDF2/OTP flow.

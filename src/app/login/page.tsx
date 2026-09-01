@@ -19,30 +19,28 @@ export default function LoginPage() {
     const data = Object.fromEntries(formData.entries());
 
     try {
-      const res = await fetch('/api/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+      const { signIn } = await import('next-auth/react');
+      const res = await signIn('credentials', {
+        email: data.email,
+        password: data.password,
+        redirect: false,
       });
 
-      if (!res.ok) {
-        const errorData = await res.json();
-        throw new Error(errorData.error || 'Failed to sign in');
+      if (res?.error) {
+        if (res.error === '2FA_REQUIRED') {
+          // Pass email to 2fa page
+          router.push(`/verify-2fa?email=${encodeURIComponent(data.email as string)}`);
+          return;
+        }
+        throw new Error(res.error);
       }
 
-      const result = await res.json();
-
-      if (result.requires2FA) {
-        router.push('/verify-2fa');
-      } else if (result.role === 'admin' || result.role === 'super_admin') {
-        router.push('/dashboard/admin');
-      } else if (result.role === 'lawyer') {
-        router.push('/dashboard/lawyer');
-      } else {
+      if (res?.ok) {
         router.push('/dashboard');
+        router.refresh();
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Invalid credentials');
       setLoading(false);
     }
   };
