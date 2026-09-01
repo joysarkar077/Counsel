@@ -9,10 +9,14 @@ export async function POST(req: Request) {
   try {
     await dbConnect();
 
-    const { username, email, contact, password } = await req.json();
+    const { username, email, contact, password, role = 'client' } = await req.json();
 
     if (!username || !email || !password) {
       return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    }
+
+    if (role !== 'client' && role !== 'lawyer') {
+      return NextResponse.json({ error: 'Invalid role' }, { status: 400 });
     }
 
     const emailHash = generateEmailBlindIndex(email);
@@ -36,9 +40,6 @@ export async function POST(req: Request) {
     const { hash: passwordHash, salt } = hashPassword(password);
 
     // 4. Save to DB
-    // Note: privateKey.d should be symmetrically encrypted with a key derived from the password.
-    // Since we are restricted from using symmetric crypto libraries, we store it directly for this step,
-    // or wrap it using a permitted method later.
     const newUser = new User({
       username_enc,
       email_enc,
@@ -48,8 +49,8 @@ export async function POST(req: Request) {
       salt,
       publicKey: JSON.stringify(publicKey),
       encryptedPrivateKey: privateKey.d,
-      role: 'client',
-      isActive: true,
+      role,
+      isActive: role === 'client', // Lawyers require admin activation
     });
 
     await newUser.save();

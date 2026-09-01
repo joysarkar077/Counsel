@@ -4,14 +4,19 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
 
-export default function DashboardLayout({
+export default function ClientLayout({
   children,
+  userRole,
+  isActive,
 }: {
   children: React.ReactNode;
+  userRole?: string;
+  isActive?: boolean;
 }) {
   const router = useRouter();
   const pathname = usePathname();
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const isPendingLawyer = userRole === 'lawyer' && isActive === false;
 
   // Close mobile menu automatically on route changes
   useEffect(() => {
@@ -60,6 +65,20 @@ export default function DashboardLayout({
     },
   ];
 
+  if (userRole === 'admin' || userRole === 'super_admin') {
+    navItems.push({
+      href: '/dashboard/admin/requests',
+      label: 'Admin Requests',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+          <path d="M16 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+          <circle cx="8.5" cy="7" r="4" />
+          <polyline points="17 11 19 13 23 9" />
+        </svg>
+      ),
+    });
+  }
+
   const systemItems = [
     {
       href: '/dashboard/audit',
@@ -86,11 +105,13 @@ export default function DashboardLayout({
     <>
       {/* Sidebar Brand Header */}
       <div className="px-6 py-5 border-b border-slate-800/80 flex items-center justify-between">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            C
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
           </div>
-          <span className="font-bold text-white tracking-tight text-base">Counsel</span>
+          <span className="font-bold text-white tracking-tight text-lg">Counsel</span>
         </div>
         {/* Mobile close button */}
         <button
@@ -107,64 +128,66 @@ export default function DashboardLayout({
 
       {/* Nav Sections */}
       <div className="flex-1 flex flex-col justify-between p-4 overflow-y-auto">
-        <div className="space-y-6">
-          {/* Main Menu */}
-          <div>
-            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              Workspace
-            </p>
-            <nav className="space-y-1">
-              {navItems.map((item) => {
-                const isActive =
-                  item.href === '/dashboard'
-                    ? pathname === '/dashboard'
-                    : pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
-          </div>
+        {!isPendingLawyer && (
+          <div className="space-y-6">
+            {/* Main Menu */}
+            <div>
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                Workspace
+              </p>
+              <nav className="space-y-1">
+                {navItems.map((item) => {
+                  const isActive =
+                    item.href === '/dashboard'
+                      ? pathname === '/dashboard'
+                      : pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-navy-core text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
 
-          {/* System Menu */}
-          <div>
-            <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
-              System
-            </p>
-            <nav className="space-y-1">
-              {systemItems.map((item) => {
-                const isActive = pathname.startsWith(item.href);
-                return (
-                  <Link
-                    key={item.href}
-                    href={item.href}
-                    onClick={() => setIsMobileMenuOpen(false)}
-                    className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
-                      isActive
-                        ? 'bg-blue-600 text-white shadow-sm'
-                        : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
-                    }`}
-                  >
-                    {item.icon}
-                    {item.label}
-                  </Link>
-                );
-              })}
-            </nav>
+            {/* System Menu */}
+            <div>
+              <p className="px-3 text-[10px] font-bold uppercase tracking-wider text-slate-500 mb-2">
+                System
+              </p>
+              <nav className="space-y-1">
+                {systemItems.map((item) => {
+                  const isActive = pathname.startsWith(item.href);
+                  return (
+                    <Link
+                      key={item.href}
+                      href={item.href}
+                      onClick={() => setIsMobileMenuOpen(false)}
+                      className={`flex items-center gap-3 px-3 py-2 rounded-lg text-xs font-semibold transition-colors ${
+                        isActive
+                          ? 'bg-navy-core text-white shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/60'
+                      }`}
+                    >
+                      {item.icon}
+                      {item.label}
+                    </Link>
+                  );
+                })}
+              </nav>
+            </div>
           </div>
-        </div>
+        )}
 
         {/* Bottom Actions */}
         <div className="pt-4 border-t border-slate-800/80 mt-6">
@@ -188,11 +211,13 @@ export default function DashboardLayout({
     <div className="flex flex-col md:flex-row min-h-screen bg-slate-50/50">
       {/* Mobile Top Header */}
       <header className="md:hidden flex items-center justify-between px-4 py-3 bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
-        <div className="flex items-center gap-2.5">
-          <div className="w-7 h-7 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-xs shadow-sm">
-            C
+        <div className="flex items-center gap-3">
+          <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
           </div>
-          <span className="font-bold text-white tracking-tight text-base">Counsel</span>
+          <span className="font-bold text-white tracking-tight text-lg">Counsel</span>
         </div>
         <button
           onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}

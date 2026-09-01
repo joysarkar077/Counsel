@@ -51,9 +51,11 @@ export default function LoginPage() {
     <div className="min-h-screen flex flex-col md:flex-row bg-white">
       {/* Left: Branding Panel */}
       <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 text-white flex-col justify-between p-12">
-        <Link href="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-            C
+        <Link href="/" className="flex items-center gap-3 text-white hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
           </div>
           <span className="font-bold tracking-tight text-lg">Counsel</span>
         </Link>
@@ -87,9 +89,11 @@ export default function LoginPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12">
         <div className="w-full max-w-md space-y-8 animate-fade-up">
           {/* Mobile brand fallback */}
-          <Link href="/" className="md:hidden flex items-center gap-2 mb-8 text-slate-900">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-              C
+          <Link href="/" className="md:hidden flex items-center gap-3 mb-8 text-slate-900">
+            <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
             </div>
             <span className="font-bold tracking-tight text-lg">Counsel</span>
           </Link>

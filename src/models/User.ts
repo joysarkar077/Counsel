@@ -46,8 +46,11 @@ const UserSchema: Schema = new Schema({
     type: Boolean,
     default: true, // false for invited users until they accept
   },
-  totpSecret: {
+  otpHash: {
     type: String,
+  },
+  otpExpiresAt: {
+    type: Date,
   },
   createdAt: {
     type: Date,
