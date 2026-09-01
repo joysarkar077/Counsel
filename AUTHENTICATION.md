@@ -29,19 +29,17 @@ Once the password is verified, the user is not immediately logged in. They enter
 3. **Email Delivery**: The plaintext OTP is emailed to the user via Nodemailer.
 4. **Verification**: The user submits the OTP to `/api/auth/verify-2fa`. The system verifies the `temp_auth_token` signature, hashes the submitted OTP, and compares it to the stored `otpHash` in constant time.
 
-## 4. Session Management
-Upon successful 2FA verification, the temporary token is destroyed, and a full session is established.
+## 4. Session Management (NextAuth / Auth.js)
+Upon successful 2FA verification, the session is established using **NextAuth (Auth.js)**. 
 
-- **Token Structure**: A JWT-style token is created (`header.payload.signature`).
-- **Payload**: Contains `userId`, `role`, `iat` (issued at), and `exp` (expiration set to 24 hours).
-- **Signature**: The payload is signed using HMAC-SHA256 with the `SERVER_SECRET`. *(Note: This will eventually be migrated to an ECDSA signature by the cryptography team).*
-- **Storage**: The token is stored as an HTTP-only, secure, SameSite=Lax cookie (`session_token`), ensuring it is immune to Cross-Site Scripting (XSS) attacks.
+- **Custom Credentials Provider**: The login flow uses a single `CredentialsProvider` that natively supports our two-step authentication process (checking PBKDF2 hashes first, then verifying the email OTP).
+- **Session Strategy**: We use the standard NextAuth `jwt` strategy.
+- **Payload Extraction**: NextAuth's `jwt` and `session` callbacks are customized to embed the `userId` and `role` securely inside the JWE token.
 
-## 5. Route Protection & RBAC (Edge Middleware)
-All protected routes (both UI and API) are guarded by `src/middleware.ts`, which runs on the Edge runtime.
+## 5. Route Protection & RBAC (NextAuth Edge Middleware)
+All protected routes (both UI and API) are guarded by `src/middleware.ts`, utilizing NextAuth's official `withAuth` wrapper.
 
 1. **Interception**: The middleware intercepts all traffic to `/dashboard/*` and protected `/api/*` routes.
-2. **Validation**: It extracts the `session_token` cookie and verifies the HMAC signature using Web Crypto API (`crypto.subtle`).
-3. **Header Injection**: If the signature is valid and the token is not expired, the middleware decodes the payload and injects `x-user-id` and `x-user-role` into the HTTP headers.
-4. **Rejection**: If the token is missing, invalid, or tampered with, the middleware intercepts the request. API requests receive a `401 Unauthorized` JSON response, while UI requests are redirected to `/login`.
-5. **Downstream Enforcement**: API routes like `src/app/api/cases/route.ts` consume the injected headers to enforce Role-Based Access Control (RBAC), ensuring that clients, lawyers, and admins can only perform actions authorized for their specific role.
+2. **Validation**: NextAuth automatically verifies the session cookie and JWT validity. If invalid, the UI redirects to `/login` and API routes return `401 Unauthorized`.
+3. **Header Injection (Backwards Compatibility)**: To ensure that the existing API routes do not break and can still enforce Role-Based Access Control (RBAC), the middleware manually intercepts the request before passing it down and injects `x-user-id` and `x-user-role` into the HTTP headers based on the decoded NextAuth token.
+4. **Downstream Enforcement**: API routes like `src/app/api/cases/route.ts` seamlessly consume the injected headers, enforcing boundaries for clients, lawyers, and admins.

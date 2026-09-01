@@ -1,10 +1,13 @@
 'use client';
-import { useState, useRef } from 'react';
+import { useState, useRef, Suspense } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useSearchParams, useRouter } from 'next/navigation';
 
-export default function Verify2FAPage() {
+function Verify2FAContent() {
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const email = searchParams.get('email');
+  
   const [code, setCode] = useState(['', '', '', '', '', '']);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
@@ -42,28 +45,32 @@ export default function Verify2FAPage() {
       setError('Please enter the full 6-digit code');
       return;
     }
+    if (!email) {
+      setError('Missing email session. Please login again.');
+      return;
+    }
     setLoading(true);
     setError('');
 
     try {
-      const res = await fetch('/api/auth/verify-2fa', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ otp }),
+      const { signIn } = await import('next-auth/react');
+      const res = await signIn('credentials', {
+        email,
+        otp,
+        is2FAPhase: 'true',
+        redirect: false,
       });
 
-      const result = await res.json();
-      if (!res.ok) {
-        throw new Error(result.error || 'Invalid code');
+      if (res?.error) {
+        throw new Error(res.error);
       }
 
-      if (result.role === 'admin' || result.role === 'super_admin') {
-        router.push('/dashboard/admin');
-      } else {
+      if (res?.ok) {
         router.push('/dashboard');
+        router.refresh();
       }
     } catch (err: any) {
-      setError(err.message);
+      setError(err.message || 'Invalid code');
       setCode(['', '', '', '', '', '']);
       inputs.current[0]?.focus();
     } finally {
@@ -117,5 +124,13 @@ export default function Verify2FAPage() {
         </div>
       </div>
     </div>
+  );
+}
+
+export default function Verify2FAPage() {
+  return (
+    <Suspense fallback={<div className="min-h-screen flex items-center justify-center">Loading...</div>}>
+      <Verify2FAContent />
+    </Suspense>
   );
 }
