@@ -31,6 +31,7 @@ export default withAuth(
     pages: {
       signIn: '/login',
     },
+    secret: process.env.NEXTAUTH_SECRET || process.env.SERVER_SECRET || 'dev-secret-change-in-production',
   }
 );
 
