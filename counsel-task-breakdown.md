@@ -36,11 +36,16 @@ Person A is responsible for the identity layer of the application. Since persona
     *   Interface with Person C's KDF module (using a stub if necessary) to verify hashed passwords.
 5.  **State-Change Verification**
     *   Implement the RSA-signed case-status-change verification logic to ensure only authorized roles mutated the case state.
+6.  **UI/UX Redesign & Layout (Frontend)**
+    *   Migrate project to Tailwind CSS v4 and integrate the new Navy/Gold color system.
+    *   Build responsive split-panel layouts for authentication pages.
+    *   Build the core dashboard shells for Lawyers, Clients, and Admins.
 
 ### Specific Constraints for Person A
 *   **Block Sizes:** Because PII is often longer than a single RSA block, the plaintext must be correctly split into blocks smaller than `n`, encrypted separately, and concatenated.
 *   **Prime Generation:** Random candidates must be tested with Miller-Rabin until passing; do not rely on pre-generated primes.
 *   **Signatures:** Signatures must sign the *hash* of the message, not the raw message itself.
+*   **Styling:** All UI styling must use standard Tailwind CSS v4 classes without inline CSS.
 
 ---
 
@@ -68,8 +73,8 @@ Person B secures the bulk of the platform's data—the actual legal cases, notes
     *   Encrypt message bodies using ECIES.
     *   Apply RSA signatures (calling Person A's module) to prove message authorship.
 6.  **Session Management**
-    *   Implement ECDSA-signed cookies.
-    *   Develop session fingerprinting (e.g., tying sessions to devices/browsers) and expiry logic.
+    *   Integrate `next-auth` (Auth.js) for robust session management.
+    *   Wire up custom `CredentialsProvider` to our PBKDF2/TOTP flows.
 
 ### Specific Constraints for Person B
 *   **Curve Selection:** Strictly use the documented `secp256k1` curve; do not invent a custom curve.
