@@ -2,8 +2,8 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
-import { verifyTotp } from '@/lib/crypto/totp';
 import { hmacSha256 } from '@/lib/crypto/hmac';
+import crypto from 'crypto';
 import { appendEntry } from '@/lib/audit/log';
 
 export async function POST(req: Request) {
@@ -39,16 +39,28 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Retrieve TOTP secret from user document
-    // If user doesn't have a TOTP secret yet (e.g. first login), we should ideally force setup.
-    // For this prototype, we'll assume a shared demo secret if not set.
-    const totpSecret = user.totpSecret || process.env.TOTP_SECRET || 'JBSWY3DPEHPK3PXP'; 
+    if (!user.otpHash || !user.otpExpiresAt) {
+      return NextResponse.json({ error: 'No active OTP session. Please login again.' }, { status: 401 });
+    }
 
-    const isValid = verifyTotp(Buffer.from(totpSecret, 'utf-8'), otp, 30, 1);
+    if (new Date() > user.otpExpiresAt) {
+      return NextResponse.json({ error: 'OTP has expired' }, { status: 401 });
+    }
+
+    const inputHash = crypto.createHash('sha256').update(otp).digest('hex');
     
-    if (!isValid) {
+    // Constant time compare to prevent timing side channels
+    const expectedBuf = Buffer.from(user.otpHash, 'hex');
+    const inputBuf = Buffer.from(inputHash, 'hex');
+    
+    if (expectedBuf.length !== inputBuf.length || !crypto.timingSafeEqual(expectedBuf, inputBuf)) {
       return NextResponse.json({ error: 'Invalid 2FA code' }, { status: 401 });
     }
+
+    // Clear OTP fields so it can't be reused
+    user.otpHash = undefined;
+    user.otpExpiresAt = undefined;
+    await user.save();
 
     // Create full session payload
     // Sabid will replace this with an ECDSA signature later. For now, we use HMAC.

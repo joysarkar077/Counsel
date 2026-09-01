@@ -18,11 +18,19 @@ export default function RegisterPage() {
     const formData = new FormData(e.currentTarget);
     const data = Object.fromEntries(formData.entries());
 
+    const payload = {
+      username: `${data.firstName} ${data.lastName}`.trim(),
+      email: data.email,
+      contact: data.phone,
+      password: data.password,
+      role: data.role,
+    };
+
     try {
       const res = await fetch('/api/auth/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(data),
+        body: JSON.stringify(payload),
       });
 
       if (!res.ok) {
@@ -41,9 +49,11 @@ export default function RegisterPage() {
     <div className="min-h-screen flex flex-col md:flex-row bg-white">
       {/* Left: Branding Panel */}
       <div className="hidden md:flex md:w-1/2 lg:w-5/12 bg-slate-900 text-white flex-col justify-between p-12">
-        <Link href="/" className="flex items-center gap-2 text-white hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm shadow-sm">
-            C
+        <Link href="/" className="flex items-center gap-3 text-white hover:opacity-80 transition-opacity">
+          <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+              <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+            </svg>
           </div>
           <span className="font-bold tracking-tight text-lg">Counsel</span>
         </Link>
@@ -77,9 +87,11 @@ export default function RegisterPage() {
       <div className="flex-1 flex items-center justify-center p-6 sm:p-12 overflow-y-auto">
         <div className="w-full max-w-md space-y-8 animate-fade-up py-8">
           {/* Mobile brand fallback */}
-          <Link href="/" className="md:hidden flex items-center gap-2 mb-8 text-slate-900">
-            <div className="w-8 h-8 rounded-lg bg-blue-600 flex items-center justify-center text-white font-bold text-sm">
-              C
+          <Link href="/" className="md:hidden flex items-center gap-3 mb-8 text-slate-900">
+            <div className="w-8 h-8 rounded-lg bg-navy-core flex items-center justify-center text-white shadow-sm">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-5 h-5">
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"></path>
+              </svg>
             </div>
             <span className="font-bold tracking-tight text-lg">Counsel</span>
           </Link>
@@ -96,6 +108,20 @@ export default function RegisterPage() {
           )}
 
           <form onSubmit={handleSubmit} noValidate className="space-y-5">
+            <div className="space-y-3">
+              <label className="text-sm font-semibold text-slate-700">Account Type</label>
+              <div className="grid grid-cols-2 gap-4">
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                  <input type="radio" name="role" value="client" defaultChecked className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500" disabled={loading} />
+                  <span className="text-sm font-medium text-slate-900">Client</span>
+                </label>
+                <label className="flex items-center gap-3 p-3 rounded-lg border border-slate-200 cursor-pointer hover:bg-slate-50 transition-colors has-[:checked]:border-blue-500 has-[:checked]:bg-blue-50">
+                  <input type="radio" name="role" value="lawyer" className="w-4 h-4 text-blue-600 border-slate-300 focus:ring-blue-500" disabled={loading} />
+                  <span className="text-sm font-medium text-slate-900">Lawyer</span>
+                </label>
+              </div>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-1.5">
                 <label htmlFor="firstName" className="text-sm font-semibold text-slate-700">First Name</label>

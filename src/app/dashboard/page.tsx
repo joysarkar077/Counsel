@@ -1,6 +1,40 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import dbConnect from '@/lib/db/mongoose';
+import { User } from '@/models/User';
 
-export default function DashboardPage() {
+export default async function DashboardPage() {
+  const headersList = await headers();
+  const userId = headersList.get('x-user-id');
+  let isPendingLawyer = false;
+
+  if (userId) {
+    await dbConnect();
+    const user = await User.findById(userId).select('role isActive').lean();
+    if (user && user.role === 'lawyer' && !user.isActive) {
+      isPendingLawyer = true;
+    }
+  }
+
+  if (isPendingLawyer) {
+    return (
+      <div className="flex flex-col items-center justify-center min-h-[60vh] text-center animate-fade-up">
+        <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-6">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-amber-600">
+            <circle cx="12" cy="12" r="10" />
+            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="16" x2="12.01" y2="16" />
+          </svg>
+        </div>
+        <h1 className="text-2xl font-bold tracking-tight text-slate-900 mb-2">Account Pending Activation</h1>
+        <p className="text-slate-500 max-w-md mx-auto">
+          Your lawyer account request is currently under review by an administrator.
+          You will be able to access the dashboard once your account is verified and activated.
+        </p>
+      </div>
+    );
+  }
+
   return (
     <div className="animate-fade-up space-y-8 max-w-6xl">
       {/* Top Header */}

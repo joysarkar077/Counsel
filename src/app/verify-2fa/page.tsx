@@ -59,8 +59,6 @@ export default function Verify2FAPage() {
 
       if (result.role === 'admin' || result.role === 'super_admin') {
         router.push('/dashboard/admin');
-      } else if (result.role === 'lawyer') {
-        router.push('/dashboard/lawyer');
       } else {
         router.push('/dashboard');
       }
@@ -84,7 +82,7 @@ export default function Verify2FAPage() {
 
         <h1 className="text-[1.5rem] font-extrabold text-text-primary tracking-tight mb-2 text-center">Two-Factor Verification</h1>
         <p className="text-[0.9rem] text-text-muted text-center leading-relaxed mb-7">
-          Enter the 6-digit code from your authenticator app.
+          We've sent a 6-digit code to your email address.
         </p>
 
         {error && <div className="bg-red-50 text-red-600 p-3 rounded-lg text-sm mb-4 border border-red-100 w-full">{error}</div>}

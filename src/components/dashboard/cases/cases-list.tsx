@@ -115,8 +115,8 @@ export function CasesList({ cases }: CasesListProps) {
                     </Link>
                   </td>
                   <td className="py-3.5 px-2">{getStatusBadge(c.status)}</td>
-                  <td className="py-3.5 px-2 text-slate-500">{new Date(c.updatedAt).toLocaleDateString()}</td>
-                  <td className="py-3.5 px-2 text-slate-500">{new Date(c.createdAt).toLocaleDateString()}</td>
+                  <td className="py-3.5 px-2 text-slate-500" suppressHydrationWarning>{new Date(c.updatedAt).toLocaleDateString()}</td>
+                  <td className="py-3.5 px-2 text-slate-500" suppressHydrationWarning>{new Date(c.createdAt).toLocaleDateString()}</td>
                   <td className="py-3.5 px-2 text-right">
                     <Link
                       href={`/dashboard/cases/${c.id}`}

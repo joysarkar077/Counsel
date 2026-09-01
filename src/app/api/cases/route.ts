@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
-import { encrypt } from '@/lib/crypto/ecc';
+import { encrypt, RSAPublicKey } from '@/lib/crypto/rsa';
 import { computeHmac } from '@/lib/crypto/hmacStub';
 import { appendEntry } from '@/lib/audit/log';
 import { requireRole } from '@/lib/auth/rbac';
@@ -59,8 +59,11 @@ const postHandler = async function POST(req: Request) {
       );
     }
 
-    // --- Encrypt case content with the client's ECC public key (ECIES) ---
-    const publicKey: string = user.publicKey; // stored as 'x,y' hex from ECC keygen
+    // --- Encrypt case content with the client's public key ---
+    // Note: The comment originally said ECC, but User generation is currently using RSA.
+    // Parsing the JSON string into an RSAPublicKey object.
+    const publicKey: RSAPublicKey = JSON.parse(user.publicKey);
+    
     const titleEncBundle = encrypt(title, publicKey);
     const descEncBundle = encrypt(description, publicKey);
     const opposingPartyEncBundle = encrypt(opposingParty, publicKey);
