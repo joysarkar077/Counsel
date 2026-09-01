@@ -36,11 +36,16 @@ Person A is responsible for the identity layer of the application. Since persona
     *   Interface with Person C's KDF module (using a stub if necessary) to verify hashed passwords.
 5.  **State-Change Verification**
     *   Implement the RSA-signed case-status-change verification logic to ensure only authorized roles mutated the case state.
+6.  **UI/UX Redesign & Layout (Frontend)**
+    *   Migrate project to Tailwind CSS v4 and integrate the new Navy/Gold color system.
+    *   Build responsive split-panel layouts for authentication pages.
+    *   Build the core dashboard shells for Lawyers, Clients, and Admins.
 
 ### Specific Constraints for Person A
 *   **Block Sizes:** Because PII is often longer than a single RSA block, the plaintext must be correctly split into blocks smaller than `n`, encrypted separately, and concatenated.
 *   **Prime Generation:** Random candidates must be tested with Miller-Rabin until passing; do not rely on pre-generated primes.
 *   **Signatures:** Signatures must sign the *hash* of the message, not the raw message itself.
+*   **Styling:** All UI styling must use standard Tailwind CSS v4 classes without inline CSS.
 
 ---
 

@@ -449,7 +449,7 @@ SHA-256 is used as the inner hash, which is allowed as a primitive since the HMA
 | 4   | Registration API, RSA-encrypt PII fields, generate the user's RSA keypair, store the encrypted private key |
 | 5   | Login step one, credentials check, calling into Person C's `kdf.ts` once ready, stubbed until then         |
 | 6   | RSA-signed case-status-change verification logic                                                           |
-| 7   | Bug fixing and writing the RSA section of the report                                                       |
+| 7   | Bug fixing, writing the RSA report section, and migrating UI/UX to Tailwind CSS v4 split-pane architecture |
 
 **Sabid Mahmud, ECC plus Content** (self-contained, since ECC covers content encryption)
 
