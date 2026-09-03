@@ -4,11 +4,18 @@ import { NextResponse } from 'next/server';
 export default withAuth(
   function middleware(req) {
     const token = req.nextauth.token;
-    const isProtectedApi = req.nextUrl.pathname.startsWith('/api/') && !req.nextUrl.pathname.startsWith('/api/auth/');
+    const isProtectedApi =
+      req.nextUrl.pathname.startsWith('/api/') &&
+      !req.nextUrl.pathname.startsWith('/api/auth/') &&
+      !req.nextUrl.pathname.startsWith('/api/uploadthing');
 
     if (!token) {
       if (isProtectedApi) {
         return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      // If it's an API route that IS explicitly allowed (like auth or uploadthing webhook), let it pass
+      if (req.nextUrl.pathname.startsWith('/api/')) {
+        return NextResponse.next();
       }
       return NextResponse.redirect(new URL('/login', req.url));
     }
@@ -26,7 +33,7 @@ export default withAuth(
   },
   {
     callbacks: {
-      authorized: ({ token }) => !!token,
+      authorized: () => true, // Let the custom middleware function handle authorization
     },
     pages: {
       signIn: '/login',
@@ -38,6 +45,9 @@ export default withAuth(
 export const config = {
   matcher: [
     '/dashboard/:path*',
+    '/client/:path*',
+    '/lawyer/:path*',
+    '/admin/:path*',
     '/api/:path*',
   ]
 };

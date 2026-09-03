@@ -52,10 +52,26 @@ const UserSchema: Schema = new Schema({
   otpExpiresAt: {
     type: Date,
   },
+  position: { type: String },
+  employeeId: { type: String },
+  department: { type: String },
+  casesHandled: { type: Number, default: 0 },
+  activeCases: { type: Number, default: 0 },
+  successRate: { type: String },
+  joinDate: { type: Date },
+  address_enc: { type: String },
+  bloodGroup_enc: { type: String },
+  avatarUrl: { type: String },
+  avatarKey_enc: { type: String },
   createdAt: {
     type: Date,
     default: Date.now,
   },
 });
 
-export const User: Model<IUser> = mongoose.models.User || mongoose.model<IUser>('User', UserSchema);
+// Prevent mongoose from caching the old schema during hot-reloads
+if (mongoose.models.User) {
+  delete mongoose.models.User;
+}
+
+export const User: Model<IUser> = mongoose.model<IUser>('User', UserSchema);
