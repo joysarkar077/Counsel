@@ -1,29 +1,37 @@
 import dbConnect from '@/lib/db/mongoose';
-import { User } from '../../../../models/User';
+import { User } from '@/models/User';
 import { NextResponse } from 'next/server';
+import { headers } from 'next/headers';
+import { encrypt } from '@/lib/crypto/rsa';
 
 export async function PUT(req: Request) {
   try {
     await dbConnect();
+    const headersList = await headers();
+    const userId = headersList.get('x-user-id');
 
-    // Since session/auth is not fully implemented (waiting for ECDSA session tokens),
-    // we'll pass emailHash in the body for now to identify the user.
-    // In production, this would be extracted securely from the session cookie.
-    const { emailHash, contact_enc } = await req.json();
-
-    if (!emailHash || !contact_enc) {
-      return NextResponse.json({ error: 'Missing required fields' }, { status: 400 });
+    if (!userId) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const user = await User.findOneAndUpdate(
-      { emailHash },
-      { contact_enc },
-      { new: true }
-    );
+    const { name, contact, address, bloodGroup, avatarUrl, avatarKey } = await req.json();
 
+    const user = await User.findById(userId);
     if (!user) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
+
+    const publicKey = JSON.parse(user.publicKey);
+
+    // Encrypt fields
+    if (name) user.username_enc = encrypt(name, publicKey);
+    if (contact) user.contact_enc = encrypt(contact, publicKey);
+    if (address) user.address_enc = encrypt(address, publicKey);
+    if (bloodGroup) user.bloodGroup_enc = encrypt(bloodGroup, publicKey);
+    if (avatarUrl) user.avatarUrl = avatarUrl;
+    if (avatarKey) user.avatarKey_enc = encrypt(avatarKey, publicKey);
+
+    await user.save();
 
     return NextResponse.json({ message: 'Profile updated successfully' }, { status: 200 });
   } catch (error: any) {

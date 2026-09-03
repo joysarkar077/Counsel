@@ -13,5 +13,16 @@ export interface IUser extends Document {
   isActive: boolean;
   otpHash?: string;
   otpExpiresAt?: Date;
+  position?: string;
+  employeeId?: string;
+  department?: string;
+  casesHandled?: number;
+  activeCases?: number;
+  successRate?: string;
+  joinDate?: Date;
+  address_enc?: string;
+  bloodGroup_enc?: string;
+  avatarUrl?: string;
+  avatarKey_enc?: string;
   createdAt: Date;
 }

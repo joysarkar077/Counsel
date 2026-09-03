@@ -44,7 +44,7 @@ export default async function DashboardPage() {
           <p className="text-sm text-slate-500 mt-0.5">Welcome back. Summary of your legal cases and activities.</p>
         </div>
         <Link
-          href="/dashboard/cases/new"
+          href="/client/dashboard/cases/new"
           className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -88,14 +88,14 @@ export default async function DashboardPage() {
         <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200/60 shadow-subtle p-6">
           <div className="flex items-center justify-between mb-5">
             <h2 className="text-sm font-bold text-slate-900 tracking-tight">Recent Cases</h2>
-            <Link href="/dashboard/cases" className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors">
+            <Link href="/client/dashboard/cases" className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors">
               View all →
             </Link>
           </div>
 
           <div className="space-y-3">
             <Link
-              href="/dashboard/cases/case-1"
+              href="/client/dashboard/cases/case-1"
               className="flex items-center justify-between p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 transition-all group"
             >
               <div>
@@ -110,7 +110,7 @@ export default async function DashboardPage() {
             </Link>
 
             <Link
-              href="/dashboard/cases/case-2"
+              href="/client/dashboard/cases/case-2"
               className="flex items-center justify-between p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 transition-all group"
             >
               <div>
@@ -132,21 +132,21 @@ export default async function DashboardPage() {
             <h2 className="text-sm font-bold text-slate-900 tracking-tight mb-4">Quick Navigation</h2>
             <div className="space-y-2">
               <Link
-                href="/dashboard/cases/new"
+                href="/client/dashboard/cases/new"
                 className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
               >
                 <span>Submit Case Request</span>
                 <span className="text-slate-400">→</span>
               </Link>
               <Link
-                href="/dashboard/audit"
+                href="/client/dashboard/audit"
                 className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
               >
                 <span>Audit Logs</span>
                 <span className="text-slate-400">→</span>
               </Link>
               <Link
-                href="/dashboard/settings"
+                href="/client/dashboard/settings"
                 className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
               >
                 <span>Settings</span>

@@ -32,9 +32,18 @@ export default function ClientLayout({
     }
   };
 
+  const getBasePath = () => {
+    if (pathname.startsWith('/admin')) return '/admin';
+    if (pathname.startsWith('/lawyer')) return '/lawyer';
+    if (pathname.startsWith('/client')) return '/client';
+    // Fallback if none match (e.g. if a route hasn't been updated)
+    return '';
+  };
+  const basePath = getBasePath();
+
   const navItems = [
     {
-      href: '/dashboard',
+      href: `${basePath}/dashboard`,
       label: 'Overview',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -46,7 +55,7 @@ export default function ClientLayout({
       ),
     },
     {
-      href: '/dashboard/cases',
+      href: `${basePath}/dashboard/cases`,
       label: 'Cases',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -55,7 +64,7 @@ export default function ClientLayout({
       ),
     },
     {
-      href: '/dashboard/messages',
+      href: `${basePath}/dashboard/messages`,
       label: 'Messages',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -67,7 +76,7 @@ export default function ClientLayout({
 
   if (userRole === 'admin' || userRole === 'super_admin') {
     navItems.push({
-      href: '/dashboard/admin/requests',
+      href: `${basePath}/dashboard/requests`,
       label: 'Admin Requests',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -81,7 +90,7 @@ export default function ClientLayout({
 
   const systemItems = [
     {
-      href: '/dashboard/audit',
+      href: `${basePath}/dashboard/audit`,
       label: 'Audit Log',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -90,7 +99,17 @@ export default function ClientLayout({
       ),
     },
     {
-      href: '/dashboard/settings',
+      href: `${basePath}/dashboard/profile`,
+      label: 'Profile',
+      icon: (
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
+          <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
+          <circle cx="12" cy="7" r="4" />
+        </svg>
+      ),
+    },
+    {
+      href: `${basePath}/dashboard/settings`,
       label: 'Settings',
       icon: (
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -138,8 +157,8 @@ export default function ClientLayout({
               <nav className="space-y-1">
                 {navItems.map((item) => {
                   const isActive =
-                    item.href === '/dashboard'
-                      ? pathname === '/dashboard'
+                    item.href === `${basePath}/dashboard`
+                      ? pathname === `${basePath}/dashboard`
                       : pathname.startsWith(item.href);
                   return (
                     <Link
