@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { Message } from '@/models/Message';
 import { verifySignature } from '@/lib/crypto/ecdsa';
-import { generateHMAC } from '@/lib/crypto/hmac';
+import { generateHMAC, verifyHMAC } from '@/lib/crypto/hmac';
 import { requireRole } from '@/lib/auth/rbac';
 import { appendEntry } from '@/lib/audit/log';
 
@@ -27,7 +27,7 @@ const postHandler = async function POST(req: Request) {
       senderId: body.senderId,
       ciphertext: body.ciphertext,
       signature: body.signature,
-      integrityHash: generateHMAC('dummy_hmac_secret', body.ciphertext)
+      integrityHash: generateHMAC(process.env.SERVER_SECRET || 'dev-secret', body.ciphertext)
     });
 
     await appendEntry(userId, 'MESSAGE_SENT', `Message sent in case ${body.caseId}`);
@@ -55,7 +55,12 @@ const getHandler = async function GET(req: Request) {
 
     const messages = await Message.find({ caseId }).sort({ createdAt: 1 });
 
-    return NextResponse.json({ success: true, data: messages });
+    const verifiedMessages = messages.map(msg => {
+      const isIntact = verifyHMAC(process.env.SERVER_SECRET || 'dev-secret', msg.ciphertext, msg.integrityHash);
+      return { ...msg.toObject(), tampered: !isIntact };
+    });
+
+    return NextResponse.json({ success: true, data: verifiedMessages });
   } catch (error: any) {
     console.error('Message Fetch Error:', error);
     return NextResponse.json({ success: false, error: 'Failed to fetch messages' }, { status: 500 });

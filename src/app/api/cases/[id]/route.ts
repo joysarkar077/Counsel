@@ -4,6 +4,7 @@ import { Case } from '@/models/Case';
 import { User } from '@/models/User';
 import { requireRole } from '@/lib/auth/rbac';
 import { appendEntry } from '@/lib/audit/log';
+import { verifyHMAC, generateHMAC } from '@/lib/crypto/hmac';
 
 /**
  * GET /api/cases/[id]
@@ -39,6 +40,16 @@ const getHandler = async function GET(req: Request, { params }: { params: Promis
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    // --- Verify HMAC to detect database tampering ---
+    const hmacPayload = `${caseDoc.clientId}|${caseDoc.title_enc}|${caseDoc.description_enc}|${caseDoc.category_enc}|${caseDoc.urgency_enc}|${caseDoc.jurisdiction_enc}|${caseDoc.opposingParty_enc}|${caseDoc.claimValue_enc || ''}`;
+    const isIntact = verifyHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload, caseDoc.hmac);
+    
+    if (!isIntact) {
+      console.error(`TAMPER DETECTED: HMAC validation failed for case ${caseDoc.caseId}`);
+      await appendEntry(userId, 'CASE_TAMPER_DETECTED', `Failed integrity check for case ${caseDoc.caseId}`);
+      return NextResponse.json({ success: false, error: 'Data integrity validation failed (Tamper Detected)' }, { status: 500 });
+    }
+
     await appendEntry(userId, 'CASE_VIEWED', `Viewed case ${caseDoc.caseId}`);
 
     return NextResponse.json({ success: true, data: caseDoc }, { status: 200 });
@@ -57,15 +68,26 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
     const { id } = await params;
     const userId = (req as any).userId;
     
-    const updatedCase = await Case.findByIdAndUpdate(
-      id,
-      { $set: body, $push: { timeline: { action: 'Case Updated', actorId: userId } } },
-      { new: true }
-    );
-
-    if (!updatedCase) {
+    const caseDoc = await Case.findById(id);
+    if (!caseDoc) {
       return NextResponse.json({ success: false, error: 'Case not found' }, { status: 404 });
     }
+
+    // Apply updates explicitly to ensure hmac reconstruction uses the new values
+    const updatableFields = ['title_enc', 'description_enc', 'opposingParty_enc', 'claimValue_enc', 'category_enc', 'urgency_enc', 'jurisdiction_enc', 'status', 'lawyerIds', 'accessKeys'];
+    for (const field of updatableFields) {
+      if (body[field] !== undefined) {
+        (caseDoc as any)[field] = body[field];
+      }
+    }
+
+    caseDoc.timeline.push({ action: 'Case Updated', actorId: userId } as any);
+
+    // Recompute HMAC after updates
+    const hmacPayload = `${caseDoc.clientId}|${caseDoc.title_enc}|${caseDoc.description_enc}|${caseDoc.category_enc}|${caseDoc.urgency_enc}|${caseDoc.jurisdiction_enc}|${caseDoc.opposingParty_enc}|${caseDoc.claimValue_enc || ''}`;
+    caseDoc.hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
+
+    const updatedCase = await caseDoc.save();
 
     await appendEntry(userId, 'CASE_UPDATED', `Updated case ${updatedCase.caseId}`);
 

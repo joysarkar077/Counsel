@@ -3,7 +3,7 @@ import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
 import { encrypt, RSAPublicKey } from '@/lib/crypto/rsa';
-import { computeHmac } from '@/lib/crypto/hmacStub';
+import { generateHMAC } from '@/lib/crypto/hmac';
 import { appendEntry } from '@/lib/audit/log';
 import { requireRole } from '@/lib/auth/rbac';
 
@@ -78,9 +78,8 @@ const postHandler = async function POST(req: Request) {
     }
 
     // --- Compute HMAC fingerprint over the encrypted payload ---
-    // TODO(PersonC): swap computeHmac() for the real hmac.ts implementation when ready.
-    const hmacPayload = `${userId}|${title_enc}|${description_enc}|${category_enc}|${urgency_enc}|${jurisdiction_enc}|${opposingParty_enc}|${claimValue_enc}`;
-    const hmac = computeHmac(hmacPayload);
+    const hmacPayload = `${finalClientId}|${title_enc}|${description_enc}|${category_enc}|${urgency_enc}|${jurisdiction_enc}|${opposingParty_enc}|${claimValue_enc}`;
+    const hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
 
     // --- Persist ---
     const newCase = new Case({
