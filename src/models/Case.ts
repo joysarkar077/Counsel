@@ -24,6 +24,14 @@ const CaseSchema = new Schema<ICase>({
   category_enc: { type: String, required: true },
   urgency_enc: { type: String, required: true },
   jurisdiction_enc: { type: String, required: true },
+  hearingDates_enc: { type: String, required: false },
+  jurors_enc: { type: String, required: false },
+  da_enc: { type: String, required: false },
+  judge_enc: { type: String, required: false },
+  officers_enc: { type: String, required: false },
+  witnesses_enc: { type: String, required: false },
+  exhibits_enc: { type: String, required: false },
+  caseUpdates_enc: { type: String, required: false },
   lawyerIds: { type: [String], default: [] },
   accessKeys: { type: [AccessKeySchema], default: [] },
   status: {
@@ -35,4 +43,9 @@ const CaseSchema = new Schema<ICase>({
   hmac: { type: String, required: true },
 }, { timestamps: true });
 
-export const Case: Model<ICase> = mongoose.models.Case || mongoose.model<ICase>('Case', CaseSchema);
+// Prevent mongoose from caching the old schema during hot-reloads
+if (mongoose.models.Case) {
+  delete mongoose.models.Case;
+}
+
+export const Case: Model<ICase> = mongoose.model<ICase>('Case', CaseSchema);

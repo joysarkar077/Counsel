@@ -56,8 +56,7 @@ export function EditClientProfileForm({ initialData }: { initialData: InitialPro
 
       setSuccess('Profile updated and encrypted successfully!');
       setTimeout(() => {
-        router.push('/client/dashboard/profile');
-        router.refresh();
+        window.location.assign('/client/dashboard/profile');
       }, 800);
     } catch (err: any) {
       setError(err.message || 'An error occurred during update');

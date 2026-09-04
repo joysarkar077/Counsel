@@ -46,9 +46,8 @@ export default function EditProfileForm({ initialData }: EditProfileFormProps) {
         throw new Error('Failed to update profile');
       }
 
-      // Refresh the router cache first, then navigate
-      router.refresh();
-      router.push('/lawyer/dashboard/profile');
+      // Hard navigate to bypass Next.js Client Router Cache so the new avatar shows up
+      window.location.assign('/lawyer/dashboard/profile');
     } catch (error) {
       console.error(error);
       setIsSaving(false);

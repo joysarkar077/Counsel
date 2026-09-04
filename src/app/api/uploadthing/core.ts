@@ -14,18 +14,13 @@ export const ourFileRouter = {
       console.log("file url", file.url);
       return { uploadedBy: metadata.userId, url: file.url };
     }),
-
-  caseAttachment: f({ 
-    blob: { maxFileSize: "16MB", maxFileCount: 4 }
-  })
+  exhibitFile: f({ image: { maxFileSize: "32MB" }, pdf: { maxFileSize: "32MB" }, blob: { maxFileSize: "32MB" } })
     .middleware(async ({ req }) => {
       const userId = req.headers.get("x-user-id");
       if (!userId) throw new Error("Unauthorized");
       return { userId };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      console.log("Attachment upload complete for userId:", metadata.userId);
-      console.log("file url", file.url);
       return { uploadedBy: metadata.userId, url: file.url };
     }),
 } satisfies FileRouter;
