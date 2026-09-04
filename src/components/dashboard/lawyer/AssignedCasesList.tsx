@@ -130,7 +130,7 @@ export function AssignedCasesList({ cases }: AssignedCasesListProps): React.Reac
                   <span>•</span>
                   <span>Jurisdiction: <strong className="font-medium text-slate-700">{c.jurisdiction}</strong></span>
                   <span>•</span>
-                  <span>Updated: {new Date(c.updatedAt).toLocaleDateString()}</span>
+                  <span suppressHydrationWarning>Updated: {new Date(c.updatedAt).toLocaleDateString()}</span>
                 </div>
               </div>
 

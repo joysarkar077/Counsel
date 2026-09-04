@@ -52,7 +52,7 @@ export function AdminCasesTable({ cases }: AdminCasesTableProps) {
               <tr key={c.id} className="hover:bg-slate-50/50 transition-colors group">
                 <td className="px-6 py-4">
                   <div className="font-mono text-xs text-slate-500 font-medium">{c.caseId}</div>
-                  <div className="text-[11px] text-slate-400 mt-0.5">Created {new Date(c.createdAt).toLocaleDateString()}</div>
+                  <div className="text-[11px] text-slate-400 mt-0.5">Created {new Date(c.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}</div>
                 </td>
                 <td className="px-6 py-4">
                   <div className="font-semibold text-slate-900 truncate max-w-[300px] group-hover:text-navy-core transition-colors">
