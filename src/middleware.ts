@@ -7,6 +7,7 @@ export default withAuth(
     const isProtectedApi =
       req.nextUrl.pathname.startsWith('/api/') &&
       !req.nextUrl.pathname.startsWith('/api/auth/') &&
+      !req.nextUrl.pathname.startsWith('/api/test-decrypt') &&
       !req.nextUrl.pathname.startsWith('/api/uploadthing');
 
     if (!token) {
@@ -18,6 +19,19 @@ export default withAuth(
         return NextResponse.next();
       }
       return NextResponse.redirect(new URL('/login', req.url));
+    }
+
+    if (req.nextUrl.pathname === '/dashboard' || req.nextUrl.pathname === '/dashboard/') {
+      const role = token.role as string;
+      if (role === 'admin' || role === 'super_admin') {
+        return NextResponse.redirect(new URL('/admin/dashboard', req.url));
+      }
+      if (role === 'client') {
+        return NextResponse.redirect(new URL('/client/dashboard', req.url));
+      }
+      if (role === 'lawyer') {
+        return NextResponse.redirect(new URL('/lawyer/dashboard', req.url));
+      }
     }
 
     // Inject user info into headers for API routes

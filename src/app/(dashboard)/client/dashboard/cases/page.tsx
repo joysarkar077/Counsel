@@ -1,33 +1,75 @@
 import Link from 'next/link';
+import { headers } from 'next/headers';
+import dbConnect from '@/lib/db/mongoose';
+import { User } from '@/models/User';
+import { Case } from '@/models/Case';
+import { decrypt } from '@/lib/crypto/rsa';
+import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
 import { CasesList } from '@/components/dashboard/cases/cases-list';
 
-const mockCases = [
-  {
-    id: 'case-1',
-    title: 'Divorce Settlement - Smith',
-    status: 'ACTIVE' as const,
-    createdAt: '2026-08-01T10:00:00Z',
-    updatedAt: '2026-08-25T14:30:00Z',
-  },
-  {
-    id: 'case-2',
-    title: 'Property Dispute - Johnson',
-    status: 'PENDING_REVIEW' as const,
-    createdAt: '2026-08-28T09:15:00Z',
-    updatedAt: '2026-08-28T09:15:00Z',
-  },
-  {
-    id: 'case-3',
-    title: 'Custody Agreement - Davis',
-    status: 'CLOSED' as const,
-    createdAt: '2026-05-12T11:20:00Z',
-    updatedAt: '2026-07-30T16:45:00Z',
-  },
-];
+export default async function ClientCasesPage() {
+  const headersList = await headers();
+  const userId = headersList.get('x-user-id');
 
-export default function CasesPage() {
+  if (!userId) {
+    return (
+      <div className="p-8 text-center text-slate-500">
+        Unauthorized. Please sign in to view your cases.
+      </div>
+    );
+  }
+
+  await dbConnect();
+
+  const [userDoc, caseDocs] = await Promise.all([
+    User.findById(userId).lean(),
+    Case.find({ clientId: userId }).sort({ createdAt: -1 }).lean(),
+  ]);
+
+  let privateKey: any = null;
+  if (userDoc && userDoc.publicKey && userDoc.encryptedPrivateKey) {
+    try {
+      const pub = JSON.parse(userDoc.publicKey);
+      privateKey = { d: userDoc.encryptedPrivateKey, n: pub.n };
+    } catch (err) {
+      console.error('Failed to parse RSA key on cases page:', err);
+    }
+  }
+
+  const tryDecryptCaseField = async (
+    encryptedJsonStr: string | undefined,
+    accessKeys: any[],
+    fallback: string
+  ): Promise<string> => {
+    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+    try {
+      const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
+      if (!myAccess) return fallback;
+
+      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
+      const aesKey = await importAESKey(aesKeyHex);
+
+      const payload = JSON.parse(encryptedJsonStr);
+      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+
+      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+    } catch {
+      return fallback;
+    }
+  };
+
+  const cases = await Promise.all(
+    caseDocs.map(async (doc: any) => ({
+      id: doc._id.toString(),
+      title: await tryDecryptCaseField(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+      status: (doc.status || 'PENDING_REVIEW') as any,
+      createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+    }))
+  );
+
   return (
-    <div className="animate-fade-up space-y-6 max-w-6xl">
+    <div className="animate-fade-up space-y-6 max-w-6xl mx-auto pb-10">
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
         <div>
@@ -36,7 +78,7 @@ export default function CasesPage() {
         </div>
 
         <Link
-          href="/dashboard/cases/new"
+          href="/client/dashboard/cases/new"
           className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
@@ -49,7 +91,7 @@ export default function CasesPage() {
 
       {/* Main Table Card */}
       <div className="bg-white rounded-xl border border-slate-200/60 shadow-subtle p-6">
-        <CasesList cases={mockCases} />
+        <CasesList cases={cases} />
       </div>
     </div>
   );

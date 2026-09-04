@@ -133,12 +133,8 @@ export function OverviewTab({
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <div className="flex items-center gap-2 mb-4">
           <h2 className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-            Encrypted Details
+            Case Details
           </h2>
-          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4 text-emerald-600">
-            <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-            <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-          </svg>
         </div>
         
         <div className="space-y-6">
@@ -178,13 +174,9 @@ export function OverviewTab({
                 {description}
               </p>
             ) : (
-              <div className="flex items-start gap-3 rounded-lg border border-blue-100 bg-blue-50/50 px-4 py-3">
-                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="mt-0.5 h-4 w-4 shrink-0 text-blue-600">
-                  <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-                </svg>
-                <p className="text-xs text-slate-600 leading-relaxed">
-                  This content is <strong className="font-semibold text-slate-900">ECC-encrypted</strong>. 
-                  Decryption will be available once session key management (ECDSA) is integrated.
+              <div className="flex items-start gap-3 rounded-lg border border-amber-100 bg-amber-50/50 px-4 py-3">
+                <p className="text-xs text-amber-800 leading-relaxed">
+                  Decryption failed or is pending sync. You do not have the required key to read this description.
                 </p>
               </div>
             )}

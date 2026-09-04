@@ -7,6 +7,10 @@ import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-t
 import { NotesTab } from '@/components/dashboard/cases/case-detail/notes-tab';
 import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-tab';
 import type { CaseStatus } from '@/types/case';
+import dbConnect from '@/lib/db/mongoose';
+import { User } from '@/models/User';
+import { decrypt } from '@/lib/crypto/rsa';
+import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
 
 interface CaseDetailPageProps {
   params: Promise<{ id: string }>;
@@ -28,6 +32,12 @@ async function fetchCase(id: string, cookieHeader: string) {
     clientId: string;
     title_enc: string;
     description_enc: string;
+    category_enc: string;
+    urgency_enc: string;
+    jurisdiction_enc: string;
+    opposingParty_enc: string;
+    claimValue_enc: string;
+    accessKeys: any[];
     lawyerIds: string[];
     status: CaseStatus;
     createdAt: string;
@@ -43,9 +53,56 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const caseData = await fetchCase(id, cookieHeader);
   if (!caseData) notFound();
 
-  // TODO(Task 6 — Session Management): decrypt title_enc and description_enc here
-  // using the user's ECC private key once ECDSA session tokens are in place.
-  // For now the Overview tab renders the encrypted-placeholder state.
+  // Fetch the user's RSA keys for decryption
+  await dbConnect();
+  // Decode session token to get user ID
+  const sessionToken = cookieStore.get('session_token')?.value;
+  let userId = '';
+  if (sessionToken) {
+    try {
+      const payloadStr = Buffer.from(sessionToken.split('.')[1] || '', 'base64url').toString('utf-8');
+      userId = JSON.parse(payloadStr).userId;
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  const user = await User.findById(userId).lean();
+  let privateKey: any = null;
+  if (user && user.publicKey && user.encryptedPrivateKey) {
+    try {
+      const publicKey = JSON.parse(user.publicKey);
+      privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
+    } catch (err) {
+      console.error('Failed to parse client RSA keys:', err);
+    }
+  }
+
+  const tryDecrypt = async (encryptedJsonStr: string | undefined, accessKeys: any[], fallback?: string) => {
+    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+    try {
+      const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
+      if (!myAccess) return fallback;
+
+      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
+      const aesKey = await importAESKey(aesKeyHex);
+
+      const payload = JSON.parse(encryptedJsonStr);
+      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+
+      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+    } catch {
+      return fallback;
+    }
+  };
+
+  const title = await tryDecrypt(caseData.title_enc, caseData.accessKeys, undefined);
+  const description = await tryDecrypt(caseData.description_enc, caseData.accessKeys, undefined);
+  const category = await tryDecrypt(caseData.category_enc, caseData.accessKeys, undefined);
+  const urgency = await tryDecrypt(caseData.urgency_enc, caseData.accessKeys, undefined);
+  const jurisdiction = await tryDecrypt(caseData.jurisdiction_enc, caseData.accessKeys, undefined);
+  const opposingParty = await tryDecrypt(caseData.opposingParty_enc, caseData.accessKeys, undefined);
+  const claimValue = await tryDecrypt(caseData.claimValue_enc, caseData.accessKeys, undefined);
 
   return (
     <div className="animate-fade-up">
@@ -73,30 +130,28 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
       {/* Tabbed content */}
       <div className="rounded-xl border border-border bg-bg-card p-6">
-        <CaseTabs>
-          {(activeTab) => {
-            switch (activeTab) {
-              case 'overview':
-                return (
-                  <OverviewTab
-                    caseId={caseData._id}
-                    status={caseData.status}
-                    clientId={caseData.clientId}
-                    lawyerIds={caseData.lawyerIds}
-                    createdAt={caseData.createdAt}
-                    updatedAt={caseData.updatedAt}
-                    // title and description left undefined until Task 6 decryption is wired
-                  />
-                );
-              case 'hearings':
-                return <HearingsTab caseId={caseData._id} />;
-              case 'notes':
-                return <NotesTab caseId={caseData._id} />;
-              case 'messages':
-                return <MessagesTab caseId={caseData._id} />;
-            }
-          }}
-        </CaseTabs>
+        <CaseTabs
+          overview={
+            <OverviewTab
+              caseId={caseData._id}
+              status={caseData.status}
+              clientId={caseData.clientId}
+              lawyerIds={caseData.lawyerIds}
+              createdAt={caseData.createdAt}
+              updatedAt={caseData.updatedAt}
+              title={title}
+              description={description}
+              category={category}
+              urgency={urgency}
+              jurisdiction={jurisdiction}
+              opposingParty={opposingParty}
+              claimValue={claimValue}
+            />
+          }
+          hearings={<HearingsTab caseId={caseData._id} />}
+          notes={<NotesTab caseId={caseData._id} />}
+          messages={<MessagesTab caseId={caseData._id} />}
+        />
       </div>
     </div>
   );
