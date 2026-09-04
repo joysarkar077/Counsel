@@ -8,7 +8,7 @@ export default function NewCasePage() {
       {/* Header */}
       <div>
         <Link
-          href="/dashboard/cases"
+          href="/client/dashboard/cases"
           className="inline-flex items-center gap-1.5 text-sm font-medium text-slate-500 hover:text-slate-900 transition-colors mb-6"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>

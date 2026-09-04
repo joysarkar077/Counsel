@@ -34,6 +34,7 @@ export function requireRole(allowedRoles: Role[]) {
 
       // Inject userId into req for downstream handlers to use
       (req as any).userId = userId;
+      (req as any).userRole = userRole;
 
       const hasPermission = allowedRoles.includes(userRole) || userRole === 'admin' || userRole === 'super_admin';
 
