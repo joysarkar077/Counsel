@@ -4,7 +4,7 @@ import { SecureFieldEditor } from './SecureFieldEditor';
 
 interface PersonnelTabProps {
   caseId: string;
-  encryptedCaseKey: string;
+  aesKeyHex: string;
   initialDA: string;
   initialJudge: string;
   initialOfficers: string;
@@ -13,7 +13,7 @@ interface PersonnelTabProps {
 }
 
 export function PersonnelTab({ 
-  caseId, encryptedCaseKey, initialDA, initialJudge, initialOfficers, initialWitnesses, initialJurors 
+  caseId, aesKeyHex, initialDA, initialJudge, initialOfficers, initialWitnesses, initialJurors 
 }: PersonnelTabProps) {
   
   const parseJSON = (str: string, fallback: any) => {
@@ -37,7 +37,7 @@ export function PersonnelTab({
         <SecureFieldEditor
           title="Judge"
           caseId={caseId}
-          encryptedCaseKey={encryptedCaseKey}
+          aesKeyHex={aesKeyHex}
           field="judge_enc"
           initialData={judgeData}
           renderDisplay={(data) => (
@@ -60,7 +60,7 @@ export function PersonnelTab({
         <SecureFieldEditor
           title="District Attorney / Opposing Counsel"
           caseId={caseId}
-          encryptedCaseKey={encryptedCaseKey}
+          aesKeyHex={aesKeyHex}
           field="da_enc"
           initialData={daData}
           renderDisplay={(data) => (
@@ -85,7 +85,7 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Investigating Officers"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="officers_enc"
         initialData={officersData}
         renderDisplay={(data: any[]) => (
@@ -118,7 +118,7 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Witnesses"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="witnesses_enc"
         initialData={witnessesData}
         renderDisplay={(data: any[]) => (
@@ -158,7 +158,7 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Juror List"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="jurors_enc"
         initialData={jurorsData}
         renderDisplay={(data: any[]) => (

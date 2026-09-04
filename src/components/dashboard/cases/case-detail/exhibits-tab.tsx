@@ -5,11 +5,11 @@ import EncryptedExhibitUpload from './EncryptedExhibitUpload';
 
 interface ExhibitsTabProps {
   caseId: string;
-  encryptedCaseKey: string;
+  aesKeyHex: string;
   initialData: string;
 }
 
-export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsTabProps) {
+export function ExhibitsTab({ caseId, aesKeyHex, initialData }: ExhibitsTabProps) {
   let parsed = [];
   try {
     parsed = JSON.parse(initialData);
@@ -23,7 +23,7 @@ export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsT
       <SecureFieldEditor
         title="Case Exhibits & Evidence Log"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="exhibits_enc"
         initialData={parsed}
         renderDisplay={(data: any[]) => (

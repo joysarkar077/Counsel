@@ -7,7 +7,7 @@ import { importAESKey, encryptText } from '@/lib/crypto/textCrypto';
 interface SecureFieldEditorProps {
   title: string;
   caseId: string;
-  encryptedCaseKey: string;
+  aesKeyHex: string;
   field: string;
   initialData: any;
   renderDisplay: (data: any) => React.ReactNode;
@@ -17,7 +17,7 @@ interface SecureFieldEditorProps {
 export function SecureFieldEditor({
   title,
   caseId,
-  encryptedCaseKey,
+  aesKeyHex,
   field,
   initialData,
   renderDisplay,
@@ -31,16 +31,9 @@ export function SecureFieldEditor({
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // 1. Get private key from window
-      const privateKey = (window as any).sessionPrivateKey;
-      if (!privateKey) {
-        throw new Error('Session private key not found. Please log in again.');
+      if (!aesKeyHex) {
+        throw new Error('Decryption key missing.');
       }
-
-      // 2. Decrypt AES Key
-      // We need the RSA decrypt function. Since this is a client component, we import it.
-      const { decrypt } = await import('@/lib/crypto/rsa');
-      const aesKeyHex = decrypt(encryptedCaseKey, privateKey);
       const aesKey = await importAESKey(aesKeyHex);
 
       // 3. Stringify and encrypt data

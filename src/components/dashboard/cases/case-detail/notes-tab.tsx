@@ -4,11 +4,11 @@ import { SecureFieldEditor } from './SecureFieldEditor';
 
 interface NotesTabProps {
   caseId: string;
-  encryptedCaseKey: string;
+  aesKeyHex: string;
   initialUpdates: string;
 }
 
-export function NotesTab({ caseId, encryptedCaseKey, initialUpdates }: NotesTabProps) {
+export function NotesTab({ caseId, aesKeyHex, initialUpdates }: NotesTabProps) {
   let parsed = [];
   try {
     parsed = JSON.parse(initialUpdates);
@@ -22,7 +22,7 @@ export function NotesTab({ caseId, encryptedCaseKey, initialUpdates }: NotesTabP
       <SecureFieldEditor
         title="Case Notes & Updates"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="caseUpdates_enc"
         initialData={parsed}
         renderDisplay={(data: any[]) => (

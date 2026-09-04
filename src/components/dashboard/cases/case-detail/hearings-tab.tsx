@@ -4,11 +4,11 @@ import { SecureFieldEditor } from './SecureFieldEditor';
 
 interface HearingsTabProps {
   caseId: string;
-  encryptedCaseKey: string;
+  aesKeyHex: string;
   initialData: string;
 }
 
-export function HearingsTab({ caseId, encryptedCaseKey, initialData }: HearingsTabProps) {
+export function HearingsTab({ caseId, aesKeyHex, initialData }: HearingsTabProps) {
   let parsed = [];
   try {
     parsed = JSON.parse(initialData);
@@ -22,7 +22,7 @@ export function HearingsTab({ caseId, encryptedCaseKey, initialData }: HearingsT
       <SecureFieldEditor
         title="Scheduled Hearings"
         caseId={caseId}
-        encryptedCaseKey={encryptedCaseKey}
+        aesKeyHex={aesKeyHex}
         field="hearingDates_enc"
         initialData={parsed}
         renderDisplay={(data: any[]) => (

@@ -161,11 +161,11 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               claimValue={claimValue}
             />
           }
-          hearings={<HearingsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={hearingDates || '[]'} />}
-          notes={<NotesTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialUpdates={caseUpdates || '[]'} />}
+          hearings={<HearingsTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} initialData={hearingDates || '[]'} />}
+          notes={<NotesTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} initialUpdates={caseUpdates || '[]'} />}
           messages={<MessagesTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} currentUserId={userId} />}
-          personnel={<PersonnelTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialDA={da || '{}'} initialJudge={judge || '{}'} initialOfficers={officers || '[]'} initialWitnesses={witnesses || '[]'} initialJurors={jurors || '[]'} />}
-          exhibits={<ExhibitsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={exhibits || '[]'} />}
+          personnel={<PersonnelTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} initialDA={da || '{}'} initialJudge={judge || '{}'} initialOfficers={officers || '[]'} initialWitnesses={witnesses || '[]'} initialJurors={jurors || '[]'} />}
+          exhibits={<ExhibitsTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} initialData={exhibits || '[]'} />}
         />
       </div>
 
