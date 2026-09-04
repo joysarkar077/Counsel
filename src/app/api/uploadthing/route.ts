@@ -4,6 +4,11 @@ import { NextResponse, NextRequest } from "next/server";
 
 const handler = createRouteHandler({
   router: ourFileRouter,
+  config: {
+    callbackUrl: process.env.NEXTAUTH_URL
+      ? `${process.env.NEXTAUTH_URL}/api/uploadthing`
+      : "http://localhost:3000/api/uploadthing",
+  }
 });
 
 export async function GET(req: Request) {
