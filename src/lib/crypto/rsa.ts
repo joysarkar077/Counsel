@@ -1,5 +1,11 @@
-import crypto from 'crypto';
 import { generateLargePrime, modExp, modInverse, gcd } from './bignum';
+
+// Helper to get crypto safely in Browser or Server environments
+const getCrypto = () => {
+  if (typeof window !== 'undefined' && window.crypto) return window.crypto;
+  if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
+  return require('crypto').webcrypto;
+};
 
 export interface RSAPublicKey {
   e: string; // hex
@@ -122,9 +128,14 @@ export function decrypt(ciphertextHex: string, privateKey: RSAPrivateKey): strin
  * RSA-signs a message using the private key.
  * Hashes with SHA-256 first, then applies RSA to the hash.
  */
-export function sign(message: string, privateKey: RSAPrivateKey): string {
-  const hash = crypto.createHash('sha256').update(message, 'utf8').digest('hex');
-  const hBig = BigInt('0x' + hash);
+export async function sign(message: string, privateKey: RSAPrivateKey): Promise<string> {
+  const crypto = getCrypto();
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const hBig = BigInt('0x' + hashHex);
   const d = BigInt('0x' + privateKey.d);
   const n = BigInt('0x' + privateKey.n);
   return modExp(hBig, d, n).toString(16);
@@ -134,9 +145,14 @@ export function sign(message: string, privateKey: RSAPrivateKey): string {
  * Verifies an RSA signature using the public key.
  * Returns true if the signature is valid, false otherwise.
  */
-export function verify(message: string, signatureHex: string, publicKey: RSAPublicKey): boolean {
-  const hash = crypto.createHash('sha256').update(message, 'utf8').digest('hex');
-  const expected = BigInt('0x' + hash);
+export async function verify(message: string, signatureHex: string, publicKey: RSAPublicKey): Promise<boolean> {
+  const crypto = getCrypto();
+  const msgUint8 = new TextEncoder().encode(message);
+  const hashBuffer = await crypto.subtle.digest('SHA-256', msgUint8);
+  const hashArray = Array.from(new Uint8Array(hashBuffer));
+  const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+  
+  const expected = BigInt('0x' + hashHex);
   const e = BigInt('0x' + publicKey.e);
   const n = BigInt('0x' + publicKey.n);
   const s = BigInt('0x' + signatureHex);

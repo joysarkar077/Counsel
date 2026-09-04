@@ -17,15 +17,15 @@ export function buildStateMessage(caseId: string, oldState: string, newState: st
  * @param privateKey - The user's decrypted RSA private key
  * @returns { signatureHex, timestamp }
  */
-export function signStateTransition(
+export async function signStateTransition(
   caseId: string,
   oldState: string,
   newState: string,
   privateKey: RSAPrivateKey
-): { signatureHex: string; timestamp: number } {
+): Promise<{ signatureHex: string; timestamp: number }> {
   const timestamp = Date.now();
   const message = buildStateMessage(caseId, oldState, newState, timestamp);
-  const signatureHex = sign(message, privateKey);
+  const signatureHex = await sign(message, privateKey);
   
   return { signatureHex, timestamp };
 }
@@ -42,14 +42,14 @@ export function signStateTransition(
  * @param publicKey - The public key of the user who supposedly made the change
  * @returns true if the signature is valid for this exact transition
  */
-export function verifyStateTransition(
+export async function verifyStateTransition(
   caseId: string,
   oldState: string,
   newState: string,
   timestamp: number,
   signatureHex: string,
   publicKey: RSAPublicKey
-): boolean {
+): Promise<boolean> {
   const message = buildStateMessage(caseId, oldState, newState, timestamp);
-  return verify(message, signatureHex, publicKey);
+  return await verify(message, signatureHex, publicKey);
 }

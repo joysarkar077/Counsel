@@ -14,6 +14,11 @@ export interface ITimelineEvent {
   actorId: string;
 }
 
+export interface IAccessKey {
+  userId: string;
+  encryptedCaseKey: string; // The AES-256 case key encrypted with this user's RSA public key
+}
+
 export interface ICase extends Document {
   caseId: string;
   /** MongoDB ObjectId of the client who submitted the case */
@@ -34,6 +39,8 @@ export interface ICase extends Document {
   jurisdiction_enc: string;
   /** Comma-separated list of lawyer ObjectIds assigned to this case */
   lawyerIds: string[];
+  /** Array of encrypted AES Case Keys, wrapped by each authorized user's RSA Public Key */
+  accessKeys: IAccessKey[];
   status: CaseStatus;
   timeline: ITimelineEvent[];
   /** HMAC fingerprint for tamper detection (populated by hmac.ts) */
