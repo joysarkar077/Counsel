@@ -146,8 +146,8 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
                 claimValue={claimValue}
               />
             }
-            hearings={<HearingsTab caseId={caseDoc._id.toString()} />}
-            notes={<NotesTab caseId={caseDoc._id.toString()} />}
+            hearings={<HearingsTab caseId={caseDoc._id.toString()} accessKeys={caseDoc.accessKeys} userId={userId} userRole="lawyer" />}
+            notes={<NotesTab caseId={caseDoc._id.toString()} accessKeys={caseDoc.accessKeys} userId={userId} userRole="lawyer" />}
             messages={<MessagesTab caseId={caseDoc._id.toString()} />}
           />
       </div>

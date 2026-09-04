@@ -1,6 +1,7 @@
 import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import { cookies } from 'next/headers';
+import Script from 'next/script';
 import { CaseTabs } from '@/components/dashboard/cases/case-detail/case-tabs';
 import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-tab';
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
@@ -148,11 +149,19 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               claimValue={claimValue}
             />
           }
-          hearings={<HearingsTab caseId={caseData._id} />}
-          notes={<NotesTab caseId={caseData._id} />}
+          hearings={<HearingsTab caseId={caseData._id} accessKeys={caseData.accessKeys} userId={userId} userRole="client" />}
+          notes={<NotesTab caseId={caseData._id} accessKeys={caseData.accessKeys} userId={userId} userRole="client" />}
           messages={<MessagesTab caseId={caseData._id} />}
         />
       </div>
+
+      <Script
+        id="session-private-key"
+        strategy="beforeInteractive"
+        dangerouslySetInnerHTML={{
+          __html: `window.sessionPrivateKey = ${JSON.stringify(privateKey)};`
+        }}
+      />
     </div>
   );
 }
