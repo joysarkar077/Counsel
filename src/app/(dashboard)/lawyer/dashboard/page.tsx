@@ -2,18 +2,34 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
+import { Case } from '@/models/Case';
+import { Notification } from '@/models/Notification';
+import { decrypt } from '@/lib/crypto/rsa';
+import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
+import { LawyerMetrics } from '@/components/dashboard/lawyer/LawyerMetrics';
+import { AssignedCasesList } from '@/components/dashboard/lawyer/AssignedCasesList';
+import { RequestNewCaseCard } from '@/components/dashboard/lawyer/RequestNewCaseCard';
+import { LawyerNotifications } from '@/components/dashboard/lawyer/LawyerNotifications';
+import { UsefulLinks } from '@/components/dashboard/lawyer/UsefulLinks';
+import type { ILawyerCaseItem, ILawyerNotification, ILawyerMetrics } from '@/types/lawyer-dashboard';
 
-export default async function LawyerDashboardPage() {
+export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
   const headersList = await headers();
   const userId = headersList.get('x-user-id');
   let isPendingLawyer = false;
 
-  if (userId) {
-    await dbConnect();
-    const user = await User.findById(userId).select('role isActive').lean();
-    if (user && user.role === 'lawyer' && !user.isActive) {
-      isPendingLawyer = true;
-    }
+  if (!userId) {
+    return (
+      <div className="p-8 text-center text-slate-500">
+        Unauthorized. Please sign in to access your attorney dashboard.
+      </div>
+    );
+  }
+
+  await dbConnect();
+  const user = await User.findById(userId).lean();
+  if (user && user.role === 'lawyer' && !user.isActive) {
+    isPendingLawyer = true;
   }
 
   if (isPendingLawyer) {
@@ -22,7 +38,7 @@ export default async function LawyerDashboardPage() {
         <div className="w-16 h-16 rounded-full bg-amber-100 flex items-center justify-center mb-6">
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-8 h-8 text-amber-600">
             <circle cx="12" cy="12" r="10" />
-            <line x1="12" y1="8" x2="12" y2="12" />
+            <line x1="12" y1="8" x2="12" />
             <line x1="12" y1="16" x2="12.01" y2="16" />
           </svg>
         </div>
@@ -35,130 +51,118 @@ export default async function LawyerDashboardPage() {
     );
   }
 
+  // Fetch assigned cases for this lawyer
+  const [assignedCaseDocs, notificationDocs] = await Promise.all([
+    Case.find({ lawyerIds: userId }).sort({ updatedAt: -1 }).lean(),
+    Notification.find({ userId }).sort({ createdAt: -1 }).lean()
+  ]);
+
+  let privateKey: any = null;
+  if (user && user.publicKey && user.encryptedPrivateKey) {
+    try {
+      const publicKey = JSON.parse(user.publicKey);
+      privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
+    } catch (err) {
+      console.error('Failed to parse lawyer RSA keys:', err);
+    }
+  }
+
+  const tryDecrypt = async (
+    encryptedJsonStr: string | undefined, 
+    accessKeys: any[], 
+    fallback: string
+  ) => {
+    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+    try {
+      // Find the user's encrypted AES key
+      const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
+      if (!myAccess) return fallback;
+
+      // Decrypt the AES key with RSA private key
+      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
+      const aesKey = await importAESKey(aesKeyHex);
+
+      // Parse the AES ciphertext payload
+      const payload = JSON.parse(encryptedJsonStr);
+      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+
+      // Decrypt the actual data
+      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+    } catch {
+      return fallback;
+    }
+  };
+
+  const mapCaseDoc = async (doc: any): Promise<ILawyerCaseItem> => ({
+    id: doc._id.toString(),
+    caseId: doc.caseId || `CASE-${doc._id.toString().slice(-4)}`,
+    clientId: doc.clientId ? doc.clientId.toString() : 'Unknown',
+    title: await tryDecrypt(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+    category: await tryDecrypt(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
+    status: doc.status || 'PENDING_REVIEW',
+    urgency: await tryDecrypt(doc.urgency_enc, doc.accessKeys, 'Standard'),
+    jurisdiction: await tryDecrypt(doc.jurisdiction_enc, doc.accessKeys, 'District Court'),
+    updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+  });
+
+  const assignedCases = await Promise.all(assignedCaseDocs.map(mapCaseDoc));
+  const activeCasesCount = assignedCases.filter((c) => c.status === 'ACTIVE').length;
+
+  const notifications: ILawyerNotification[] = notificationDocs.map((doc: any) => ({
+    id: doc._id.toString(),
+    title: doc.title_enc ? 'Encrypted Notification' : 'Notification',
+    message: doc.message_enc ? 'Encrypted content...' : '',
+    timestamp: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Unknown date',
+    category: doc.category || 'system',
+    read: doc.read || false,
+    actionUrl: doc.actionUrl_enc ? '#' : undefined,
+  }));
+
+  const metrics: ILawyerMetrics = {
+    assignedCasesCount: assignedCases.length,
+    activeCasesCount,
+    unreadNotificationsCount: notifications.filter((n) => !n.read).length,
+    recentUpdatesCount: assignedCases.length,
+  };
+
   return (
-    <div className="animate-fade-up space-y-8 max-w-6xl">
-      {/* Top Header */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-2 border-b border-slate-200/60">
+    <div className="animate-fade-up space-y-8 max-w-7xl mx-auto pb-10">
+      {/* Dashboard Top Bar */}
+      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4 pb-4 border-b border-slate-200/70">
         <div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Lawyer Overview</h1>
-          <p className="text-sm text-slate-500 mt-0.5">Welcome back. Summary of your client cases and activities.</p>
+          <h1 className="text-2xl font-bold tracking-tight text-slate-900">Attorney Overview</h1>
+          <p className="text-sm text-slate-500 mt-0.5">
+            Summary of your assigned client cases, activities, and case requests.
+          </p>
         </div>
         <Link
-          href="/lawyer/dashboard/cases/new"
-          className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-sm px-4 py-2.5 rounded-lg transition-colors shadow-sm"
+          href="/client/dashboard/cases/new"
+          className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-4 py-2.5 rounded-lg transition-colors shadow-sm"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">
             <line x1="12" y1="5" x2="12" y2="19" />
             <line x1="5" y1="12" x2="19" y2="12" />
           </svg>
-          New Client Case
+          Request New Case File
         </Link>
       </div>
 
       {/* Metrics Row */}
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-5">
-        <div className="bg-white rounded-xl p-5 border border-slate-200/60 shadow-subtle flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Assigned Cases</span>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-bold tracking-tight text-slate-900">1</span>
-            <span className="text-xs font-medium text-emerald-600 bg-emerald-50 px-2 py-0.5 rounded-full">1 total</span>
-          </div>
+      <LawyerMetrics metrics={metrics} />
+
+      {/* Main Content Layout */}
+      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 items-start">
+        {/* Left Column: Assigned Cases & New Case File Action */}
+        <div className="lg:col-span-2 space-y-6">
+          <AssignedCasesList cases={assignedCases} />
+          <RequestNewCaseCard recentAssignments={assignedCases} />
         </div>
 
-        <div className="bg-white rounded-xl p-5 border border-slate-200/60 shadow-subtle flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Upcoming Hearings</span>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-bold tracking-tight text-slate-900">0</span>
-            <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">None scheduled</span>
-          </div>
-        </div>
-
-        <div className="bg-white rounded-xl p-5 border border-slate-200/60 shadow-subtle flex flex-col justify-between">
-          <span className="text-xs font-semibold uppercase tracking-wider text-slate-400">Unread Messages</span>
-          <div className="mt-3 flex items-baseline justify-between">
-            <span className="text-3xl font-bold tracking-tight text-slate-900">0</span>
-            <span className="text-xs font-medium text-slate-400 bg-slate-100 px-2 py-0.5 rounded-full">All caught up</span>
-          </div>
-        </div>
-      </div>
-
-      {/* Content Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-        {/* Recent Cases */}
-        <div className="lg:col-span-2 bg-white rounded-xl border border-slate-200/60 shadow-subtle p-6">
-          <div className="flex items-center justify-between mb-5">
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight">Recent Client Cases</h2>
-            <Link href="/lawyer/dashboard/cases" className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors">
-              View all →
-            </Link>
-          </div>
-
-          <div className="space-y-3">
-            <Link
-              href="/lawyer/dashboard/cases/case-1"
-              className="flex items-center justify-between p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 transition-all group"
-            >
-              <div>
-                <p className="text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
-                  Divorce Settlement - Smith
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">Updated Aug 25, 2026</p>
-              </div>
-              <span className="text-[11px] font-semibold text-emerald-700 bg-emerald-50 px-2.5 py-1 rounded-full">
-                Active
-              </span>
-            </Link>
-
-            <Link
-              href="/lawyer/dashboard/cases/case-2"
-              className="flex items-center justify-between p-3.5 rounded-lg border border-slate-100 hover:border-slate-300 hover:bg-slate-50/50 transition-all group"
-            >
-              <div>
-                <p className="text-sm font-semibold text-slate-900 group-hover:text-blue-700 transition-colors">
-                  Property Dispute - Johnson
-                </p>
-                <p className="text-xs text-slate-400 mt-0.5">Updated Aug 28, 2026</p>
-              </div>
-              <span className="text-[11px] font-semibold text-amber-700 bg-amber-50 px-2.5 py-1 rounded-full">
-                Pending Review
-              </span>
-            </Link>
-          </div>
-        </div>
-
-        {/* Quick Links */}
-        <div className="bg-white rounded-xl border border-slate-200/60 shadow-subtle p-6 flex flex-col justify-between">
-          <div>
-            <h2 className="text-sm font-bold text-slate-900 tracking-tight mb-4">Quick Navigation</h2>
-            <div className="space-y-2">
-              <Link
-                href="/lawyer/dashboard/cases/new"
-                className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-              >
-                <span>Submit Case Request</span>
-                <span className="text-slate-400">→</span>
-              </Link>
-              <Link
-                href="/lawyer/dashboard/audit"
-                className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-              >
-                <span>Audit Logs</span>
-                <span className="text-slate-400">→</span>
-              </Link>
-              <Link
-                href="/lawyer/dashboard/settings"
-                className="flex items-center justify-between p-3 rounded-lg text-xs font-semibold text-slate-700 hover:bg-slate-50 hover:text-slate-900 transition-colors"
-              >
-                <span>Settings</span>
-                <span className="text-slate-400">→</span>
-              </Link>
-            </div>
-          </div>
-
-          <div className="mt-6 pt-4 border-t border-slate-100 flex items-center gap-2 text-[11px] text-slate-400">
-            <span className="w-1.5 h-1.5 rounded-full bg-emerald-500 shrink-0" />
-            <span>End-to-End Encrypted Workspace</span>
-          </div>
+        {/* Right Column: Notifications & Useful Links */}
+        <div className="space-y-6">
+          <LawyerNotifications initialNotifications={notifications} />
+          <UsefulLinks />
         </div>
       </div>
     </div>
