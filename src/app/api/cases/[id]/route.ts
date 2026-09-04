@@ -31,8 +31,8 @@ const getHandler = async function GET(req: Request, { params }: { params: Promis
     }
 
     // Fine-grained Role-based access control
-    const isOwner = caseDoc.clientId === userId;
-    const isAssignedLawyer = caseDoc.lawyerIds.includes(userId);
+    const isOwner = caseDoc.clientId?.toString() === userId;
+    const isAssignedLawyer = caseDoc.lawyerIds?.some((lId: any) => lId.toString() === userId);
     const isAdmin = user.role === 'admin' || user.role === 'super_admin';
 
     if (!isOwner && !isAssignedLawyer && !isAdmin) {

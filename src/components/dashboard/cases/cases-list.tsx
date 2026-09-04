@@ -110,7 +110,7 @@ export function CasesList({ cases }: CasesListProps) {
               {filteredCases.map((c) => (
                 <tr key={c.id} className="hover:bg-slate-50/70 transition-colors group">
                   <td className="py-3.5 px-2 font-semibold text-slate-900">
-                    <Link href={`/dashboard/cases/${c.id}`} className="hover:text-blue-600 transition-colors">
+                    <Link href={`/client/dashboard/cases/${c.id}`} className="hover:text-blue-600 transition-colors">
                       {c.title}
                     </Link>
                   </td>
@@ -119,7 +119,7 @@ export function CasesList({ cases }: CasesListProps) {
                   <td className="py-3.5 px-2 text-slate-500" suppressHydrationWarning>{new Date(c.createdAt).toLocaleDateString()}</td>
                   <td className="py-3.5 px-2 text-right">
                     <Link
-                      href={`/dashboard/cases/${c.id}`}
+                      href={`/client/dashboard/cases/${c.id}`}
                       className="text-xs font-semibold text-slate-600 hover:text-slate-900 transition-colors inline-flex items-center gap-1"
                     >
                       View
