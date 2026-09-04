@@ -1,6 +1,6 @@
 import dbConnect from '@/lib/db/mongoose';
 import { AuditLog } from '@/models/AuditLog';
-import { hmacSha256 } from '@/lib/crypto/hmac';
+import { hmacSha256, generateHMAC } from '@/lib/crypto/hmac';
 
 const AUDIT_LOG_KEY = Buffer.from(process.env.AUDIT_LOG_KEY || 'default-audit-key', 'utf-8');
 
@@ -23,7 +23,7 @@ export async function appendEntry(actorId: string, action: string, details: stri
 
   const newLog = await AuditLog.create({
     timestamp,
-    actorBlindIndex: actorId, // Map to model field
+    actorBlindIndex: generateHMAC(process.env.SERVER_SECRET || 'dev-secret', actorId), // Blind index hides plaintext ID
     action,
     ipHash: 'unknown',        // Required by model but not in signature
     details_enc: details,     // Map to model field
