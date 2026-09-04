@@ -4,10 +4,13 @@ import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
 import { AdminCaseAssigner } from '@/components/dashboard/admin/AdminCaseAssigner';
+import { AdminClientAssigner } from '@/components/dashboard/admin/AdminClientAssigner';
+import { AdminCaseStatusUpdater } from '@/components/dashboard/admin/AdminCaseStatusUpdater';
 import { RemoveLawyerButton } from '@/components/dashboard/admin/RemoveLawyerButton';
 import { decrypt } from '@/lib/crypto/rsa';
 import { importAESKey, decryptText } from '@/lib/crypto/textCrypto';
 import Link from 'next/link';
+import Script from 'next/script';
 
 export default async function AdminCaseDetailPage({ params }: { params: Promise<{ id: string }> }) {
   const headersList = await headers();
@@ -90,9 +93,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
             </h1>
             <code className="text-sm text-slate-500">{caseDoc.caseId}</code>
           </div>
-          <span className="px-3 py-1 bg-blue-50 text-blue-700 text-sm font-semibold rounded-full border border-blue-200">
-            {caseDoc.status.replace('_', ' ')}
-          </span>
+          <AdminCaseStatusUpdater caseId={id} currentStatus={caseDoc.status} />
         </div>
       </div>
       
@@ -150,14 +151,32 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
           </div>
 
           {adminAccess ? (
-            <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-              <h3 className="text-sm font-semibold text-slate-900 mb-3 border-b border-slate-100 pb-2">Assign New Attorney</h3>
-              <AdminCaseAssigner 
-                caseId={id} 
-                adminId={userId} 
-                encryptedCaseKey={adminAccess.encryptedCaseKey} 
-              />
-            </div>
+            <>
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                <h3 className="text-sm font-semibold text-slate-900 mb-3 border-b border-slate-100 pb-2">Assign New Attorney</h3>
+                <AdminCaseAssigner 
+                  caseId={id} 
+                  adminId={userId} 
+                  encryptedCaseKey={adminAccess.encryptedCaseKey} 
+                />
+              </div>
+              
+              <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
+              <h3 className="text-sm font-semibold text-slate-900 mb-3 border-b border-slate-100 pb-2">Assign Client</h3>
+              {caseDoc.clientId ? (
+                <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-100 flex items-center justify-between">
+                  <span>Client Assigned</span>
+                  <code className="text-xs">{caseDoc.clientId}</code>
+                </div>
+              ) : (
+                <AdminClientAssigner 
+                  caseId={id} 
+                  adminId={userId} 
+                  encryptedCaseKey={adminAccess.encryptedCaseKey} 
+                />
+              )}
+              </div>
+            </>
           ) : (
             <div className="p-4 bg-red-50 text-red-600 rounded-lg text-sm border border-red-100">
               You do not have a valid access key to read or assign this case.
@@ -167,7 +186,8 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
       </div>
 
       {/* Script to inject private key into window just for the assignment component to use securely in memory (DO NOT DO THIS IN PRODUCTION) */}
-      <script
+      <Script
+        id="inject-private-key"
         dangerouslySetInnerHTML={{
           __html: `window.sessionPrivateKey = ${JSON.stringify(privateKey)};`
         }}

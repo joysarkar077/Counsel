@@ -7,6 +7,7 @@ import { User } from '@/models/User';
 import { decrypt } from '@/lib/crypto/rsa';
 import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
 import { AdminCasesTable } from '@/components/dashboard/admin/AdminCasesTable';
+import { AdminCreateCaseButton } from '@/components/dashboard/admin/AdminCreateCaseButton';
 import type { ILawyerCaseItem } from '@/types/lawyer-dashboard';
 
 export default async function AdminCasesPage(): Promise<React.ReactNode> {
@@ -83,6 +84,7 @@ export default async function AdminCasesPage(): Promise<React.ReactNode> {
             Monitor and assign all incoming and active cases across the platform.
           </p>
         </div>
+        <AdminCreateCaseButton />
       </div>
 
       <AdminCasesTable cases={mappedCases} />

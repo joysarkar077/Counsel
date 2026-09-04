@@ -28,9 +28,10 @@ const postHandler = async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    if (user.role !== 'client' && user.role !== 'lawyer') {
+    const isAdmin = user.role === 'admin' || user.role === 'super_admin';
+    if (!isAdmin && user.role !== 'client' && user.role !== 'lawyer') {
       return NextResponse.json(
-        { success: false, error: 'Only clients and attorneys may submit case requests' },
+        { success: false, error: 'Unauthorized to create cases' },
         { status: 403 },
       );
     }
@@ -62,6 +63,20 @@ const postHandler = async function POST(req: Request) {
       );
     }
 
+    let finalClientId = userId;
+    let finalLawyerIds = user.role === 'lawyer' ? [userId] : [];
+
+    if (isAdmin) {
+      if (!body.clientId) {
+        return NextResponse.json(
+          { success: false, error: 'Admin must provide a clientId' },
+          { status: 400 },
+        );
+      }
+      finalClientId = body.clientId;
+      finalLawyerIds = body.lawyerIds && Array.isArray(body.lawyerIds) ? body.lawyerIds : [];
+    }
+
     // --- Compute HMAC fingerprint over the encrypted payload ---
     // TODO(PersonC): swap computeHmac() for the real hmac.ts implementation when ready.
     const hmacPayload = `${userId}|${title_enc}|${description_enc}|${category_enc}|${urgency_enc}|${jurisdiction_enc}|${opposingParty_enc}|${claimValue_enc}`;
@@ -70,7 +85,7 @@ const postHandler = async function POST(req: Request) {
     // --- Persist ---
     const newCase = new Case({
       caseId: `CASE-${Math.floor(1000 + Math.random() * 9000)}`,
-      clientId: userId,
+      clientId: finalClientId,
       title_enc,
       description_enc,
       opposingParty_enc,
@@ -78,7 +93,7 @@ const postHandler = async function POST(req: Request) {
       category_enc,
       urgency_enc,
       jurisdiction_enc,
-      lawyerIds: user.role === 'lawyer' ? [userId] : [],
+      lawyerIds: finalLawyerIds,
       accessKeys,
       status: 'PENDING_REVIEW',
       timeline: [{

@@ -36,10 +36,18 @@ export default async function AdminDashboardPage() {
           <p className="text-sm text-slate-500 font-medium">Review and assign all E2EE case files submitted across the platform.</p>
         </Link>
         
-        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-6 opacity-60">
-           <h2 className="text-lg font-bold text-slate-900 mb-1">User Management</h2>
-           <p className="text-sm text-slate-500 font-medium">Manage attorneys and clients (Coming Soon).</p>
-        </div>
+        <Link 
+          href="/admin/dashboard/users"
+          className="group bg-white rounded-xl border border-slate-200/60 shadow-sm p-6 hover:shadow-md hover:border-navy-core/40 transition-all block"
+        >
+          <div className="w-12 h-12 bg-violet-50 text-violet-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20H7m10-4H7m10-4H7M5 8a2 2 0 110-4 2 2 0 010 4zm12 0a2 2 0 110-4 2 2 0 010 4z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-navy-core transition-colors">User Management</h2>
+          <p className="text-sm text-slate-500 font-medium">View, search and manage all registered clients and lawyers.</p>
+        </Link>
       </div>
     </div>
   );
