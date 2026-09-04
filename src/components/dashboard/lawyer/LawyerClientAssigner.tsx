@@ -52,7 +52,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey }: Law
     fetchClients();
   }, []);
 
-  const executeAssignment = async (targetClientId: string) => {
+  const executeAssignment = async (targetClientId: string, latestClients?: ClientUser[]) => {
 
     // Attempt to grab the private key from the window object (injected by SSR)
     const privateKey = (window as any).sessionPrivateKey;
@@ -64,8 +64,9 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey }: Law
     setLoading(true);
 
     try {
+      const activeClients = latestClients || clients;
       // 1. Find the selected client's public key
-      const client = clients.find(c => c._id === targetClientId);
+      const client = activeClients.find(c => c._id === targetClientId);
       if (!client || !client.publicKey) {
         throw new Error('Client public key not found in the list. Please try again.');
       }
@@ -155,8 +156,8 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey }: Law
 
       setSelectedClientId(newClient._id);
 
-      // 4. Execute the assignment
-      await executeAssignment(newClient._id);
+      // 4. Execute the assignment using the freshly fetched array!
+      await executeAssignment(newClient._id, fetchJson.data);
 
     } catch (err: any) {
       console.error(err);
