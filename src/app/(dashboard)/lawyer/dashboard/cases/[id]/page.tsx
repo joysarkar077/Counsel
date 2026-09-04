@@ -1,5 +1,6 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
+import Script from 'next/script';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
@@ -152,7 +153,9 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
       </div>
 
       {/* Script to inject private key into window just for the assignment component to use securely in memory */}
-      <script
+      <Script
+        id="session-private-key"
+        strategy="beforeInteractive"
         dangerouslySetInnerHTML={{
           __html: `window.sessionPrivateKey = ${JSON.stringify(privateKey)};`
         }}
