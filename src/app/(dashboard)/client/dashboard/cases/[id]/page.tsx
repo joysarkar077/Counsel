@@ -139,6 +139,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       {/* Tabbed content */}
       <div className="rounded-xl border border-border bg-bg-card p-6">
           <CaseTabs
+            caseId={caseData._id}
             overview={
               <OverviewTab
                 caseId={caseData._id}
