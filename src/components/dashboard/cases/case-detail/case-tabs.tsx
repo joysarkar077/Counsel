@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useRef } from 'react';
 
 export type TabId = 'overview' | 'personnel' | 'hearings' | 'notes' | 'exhibits' | 'messages';
 
@@ -17,7 +17,12 @@ interface CaseTabsProps {
   notes: React.ReactNode;
   exhibits: React.ReactNode;
   messages: React.ReactNode;
+  /** The case MongoDB ID — used for unread-message tracking. */
+  caseId: string;
 }
+
+const POLL_INTERVAL_MS = 8000;
+const LS_KEY = (caseId: string) => `counsel-lastRead-${caseId}`;
 
 const TABS: Tab[] = [
   {
@@ -85,8 +90,65 @@ const TABS: Tab[] = [
   },
 ];
 
-export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messages }: CaseTabsProps) {
+export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messages, caseId }: CaseTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
+  const [hasUnread, setHasUnread] = useState(false);
+  const activeTabRef = useRef<TabId>('overview');
+
+  // Keep ref in sync so the polling closure always sees the latest active tab
+  useEffect(() => {
+    activeTabRef.current = activeTab;
+  }, [activeTab]);
+
+  // Mark as read immediately when Messages tab is opened
+  const handleTabClick = (tabId: TabId) => {
+    setActiveTab(tabId);
+    if (tabId === 'messages') {
+      localStorage.setItem(LS_KEY(caseId), new Date().toISOString());
+      setHasUnread(false);
+    }
+  };
+
+  // Poll for new messages and compare against localStorage lastRead timestamp
+  useEffect(() => {
+    if (!caseId) return;
+
+    const checkUnread = async () => {
+      // Never show dot when the user is already on the Messages tab
+      if (activeTabRef.current === 'messages') {
+        // Keep lastRead fresh while viewing
+        localStorage.setItem(LS_KEY(caseId), new Date().toISOString());
+        setHasUnread(false);
+        return;
+      }
+
+      try {
+        const res = await fetch(`/api/messages?caseId=${caseId}`);
+        const json = await res.json();
+        if (!json.success || !Array.isArray(json.data) || json.data.length === 0) {
+          setHasUnread(false);
+          return;
+        }
+
+        // Find the most recent message timestamp
+        const latestTs = json.data.reduce((max: number, m: any) => {
+          const t = new Date(m.createdAt).getTime();
+          return t > max ? t : max;
+        }, 0);
+
+        const lastReadStr = localStorage.getItem(LS_KEY(caseId));
+        const lastReadTs = lastReadStr ? new Date(lastReadStr).getTime() : 0;
+
+        setHasUnread(latestTs > lastReadTs);
+      } catch {
+        // Silently fail — unread dot is non-critical
+      }
+    };
+
+    checkUnread();
+    const interval = setInterval(checkUnread, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [caseId]);
 
   return (
     <div>
@@ -94,6 +156,7 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
       <div className="flex border-b border-border overflow-x-auto" role="tablist">
         {TABS.map((tab) => {
           const isActive = activeTab === tab.id;
+          const showDot = tab.id === 'messages' && hasUnread && !isActive;
           return (
             <button
               key={tab.id}
@@ -101,9 +164,9 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
               role="tab"
               aria-selected={isActive}
               aria-controls={`tabpanel-${tab.id}`}
-              onClick={() => setActiveTab(tab.id)}
+              onClick={() => handleTabClick(tab.id)}
               className={[
-                'flex items-center gap-2 px-5 py-3.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px',
+                'flex items-center gap-2 px-5 py-3.5 text-sm font-semibold whitespace-nowrap transition-colors border-b-2 -mb-px relative',
                 isActive
                   ? 'border-navy-core text-navy-core'
                   : 'border-transparent text-text-muted hover:text-text-secondary hover:border-border',
@@ -111,6 +174,12 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
             >
               {tab.icon}
               {tab.label}
+              {showDot && (
+                <span
+                  aria-label="Unread messages"
+                  className="ml-0.5 inline-flex items-center justify-center w-2 h-2 rounded-full bg-red-500 animate-pulse flex-shrink-0"
+                />
+              )}
             </button>
           );
         })}

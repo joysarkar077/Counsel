@@ -144,6 +144,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
       {/* Main Tabbed content */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
         <CaseTabs
+          caseId={caseDoc._id.toString()}
           overview={
             <OverviewTab
               caseId={caseDoc.caseId || `CASE-${caseDoc._id.toString().slice(-4)}`}
