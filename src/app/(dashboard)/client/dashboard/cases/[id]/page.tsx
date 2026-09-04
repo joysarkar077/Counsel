@@ -130,28 +130,30 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
       {/* Tabbed content */}
       <div className="rounded-xl border border-border bg-bg-card p-6">
-        <CaseTabs
-          overview={
-            <OverviewTab
-              caseId={caseData._id}
-              status={caseData.status}
-              clientId={caseData.clientId}
-              lawyerIds={caseData.lawyerIds}
-              createdAt={caseData.createdAt}
-              updatedAt={caseData.updatedAt}
-              title={title}
-              description={description}
-              category={category}
-              urgency={urgency}
-              jurisdiction={jurisdiction}
-              opposingParty={opposingParty}
-              claimValue={claimValue}
-            />
-          }
-          hearings={<HearingsTab caseId={caseData._id} />}
-          notes={<NotesTab caseId={caseData._id} />}
-          messages={<MessagesTab caseId={caseData._id} />}
-        />
+          <CaseTabs
+            overview={
+              <OverviewTab
+                caseId={caseData._id}
+                status={caseData.status}
+                clientId={caseData.clientId}
+                lawyerIds={caseData.lawyerIds}
+                createdAt={caseData.createdAt}
+                updatedAt={caseData.updatedAt}
+                title={title}
+                description={description}
+                category={category}
+                urgency={urgency}
+                jurisdiction={jurisdiction}
+                opposingParty={opposingParty}
+                claimValue={claimValue}
+              />
+            }
+            personnel={<div className="p-10 text-center text-slate-500 italic">Personnel details are restricted to legal counsel.</div>}
+            hearings={<div className="p-10 text-center text-slate-500 italic">Hearings are managed by your attorney.</div>}
+            notes={<div className="p-10 text-center text-slate-500 italic">Internal notes are restricted to legal counsel.</div>}
+            exhibits={<div className="p-10 text-center text-slate-500 italic">Exhibits are managed by your attorney.</div>}
+            messages={<MessagesTab caseId={caseData._id} />}
+          />
       </div>
     </div>
   );

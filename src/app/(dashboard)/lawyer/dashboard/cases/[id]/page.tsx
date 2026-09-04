@@ -11,6 +11,8 @@ import { CaseTabs } from '@/components/dashboard/cases/case-detail/case-tabs';
 import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-tab';
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
 import { NotesTab } from '@/components/dashboard/cases/case-detail/notes-tab';
+import { PersonnelTab } from '@/components/dashboard/cases/case-detail/personnel-tab';
+import { ExhibitsTab } from '@/components/dashboard/cases/case-detail/exhibits-tab';
 import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-tab';
 import { LawyerClientAssigner } from '@/components/dashboard/lawyer/LawyerClientAssigner';
 import type { CaseStatus } from '@/types/case';
@@ -80,6 +82,14 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
   const jurisdiction = await tryDecrypt(caseDoc.jurisdiction_enc, caseDoc.accessKeys, undefined);
   const opposingParty = await tryDecrypt(caseDoc.opposingParty_enc, caseDoc.accessKeys, undefined);
   const claimValue = await tryDecrypt(caseDoc.claimValue_enc, caseDoc.accessKeys, undefined);
+  const hearingDates = await tryDecrypt(caseDoc.hearingDates_enc, caseDoc.accessKeys, '[]');
+  const jurors = await tryDecrypt(caseDoc.jurors_enc, caseDoc.accessKeys, '[]');
+  const da = await tryDecrypt(caseDoc.da_enc, caseDoc.accessKeys, '{}');
+  const judge = await tryDecrypt(caseDoc.judge_enc, caseDoc.accessKeys, '{}');
+  const officers = await tryDecrypt(caseDoc.officers_enc, caseDoc.accessKeys, '[]');
+  const witnesses = await tryDecrypt(caseDoc.witnesses_enc, caseDoc.accessKeys, '[]');
+  const exhibits = await tryDecrypt(caseDoc.exhibits_enc, caseDoc.accessKeys, '[]');
+  const caseUpdates = await tryDecrypt(caseDoc.caseUpdates_enc, caseDoc.accessKeys, '[]');
 
   // Fetch names for client and lawyers
   let clientName = caseDoc.clientId ? caseDoc.clientId.toString() : 'Unknown';
@@ -146,9 +156,11 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
                 claimValue={claimValue}
               />
             }
-            hearings={<HearingsTab caseId={caseDoc._id.toString()} />}
-            notes={<NotesTab caseId={caseDoc._id.toString()} />}
+            hearings={<HearingsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={hearingDates || '[]'} />}
+            notes={<NotesTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialUpdates={caseUpdates || '[]'} />}
             messages={<MessagesTab caseId={caseDoc._id.toString()} />}
+            personnel={<PersonnelTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialDA={da || '{}'} initialJudge={judge || '{}'} initialOfficers={officers || '[]'} initialWitnesses={witnesses || '[]'} initialJurors={jurors || '[]'} />}
+            exhibits={<ExhibitsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={exhibits || '[]'} />}
           />
       </div>
 

@@ -37,6 +37,22 @@ export interface ICase extends Document {
   urgency_enc: string;
   /** ECIES-encrypted jurisdiction/district for routing */
   jurisdiction_enc: string;
+  /** JSON-stringified and encrypted array of hearing dates/details */
+  hearingDates_enc?: string;
+  /** JSON-stringified and encrypted array of juror details */
+  jurors_enc?: string;
+  /** JSON-stringified and encrypted DA information */
+  da_enc?: string;
+  /** JSON-stringified and encrypted Judge information */
+  judge_enc?: string;
+  /** JSON-stringified and encrypted array of investigation officers */
+  officers_enc?: string;
+  /** JSON-stringified and encrypted array of witnesses */
+  witnesses_enc?: string;
+  /** JSON-stringified and encrypted array of exhibits */
+  exhibits_enc?: string;
+  /** JSON-stringified and encrypted case updates/notes */
+  caseUpdates_enc?: string;
   /** Comma-separated list of lawyer ObjectIds assigned to this case */
   lawyerIds: string[];
   /** Array of encrypted AES Case Keys, wrapped by each authorized user's RSA Public Key */
