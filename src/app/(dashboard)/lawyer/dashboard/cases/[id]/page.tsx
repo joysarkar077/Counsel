@@ -1,6 +1,5 @@
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import Script from 'next/script';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
@@ -56,18 +55,23 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
     }
   }
 
-  const tryDecrypt = async (encryptedJsonStr: string | undefined, accessKeys: any[], fallback?: string) => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  // Derive the shared AES case key once, used for both field decryption and messaging
+  let aesKeyHex = '';
+  const myAccessKey = caseDoc.accessKeys?.find((ak: any) => ak.userId.toString() === userId);
+  if (myAccessKey && privateKey) {
     try {
-      const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      aesKeyHex = decrypt(myAccessKey.encryptedCaseKey, privateKey);
+    } catch (err) {
+      console.error('Failed to decrypt AES case key:', err);
+    }
+  }
 
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
+  const tryDecrypt = async (encryptedJsonStr: string | undefined, fallback?: string) => {
+    if (!encryptedJsonStr || !aesKeyHex) return fallback;
+    try {
       const aesKey = await importAESKey(aesKeyHex);
-
       const payload = JSON.parse(encryptedJsonStr);
       if (!payload.ciphertextHex || !payload.ivHex) return fallback;
-
       return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
     } catch {
       return fallback;
@@ -75,21 +79,21 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
   };
 
   // Decrypt the fields
-  const title = await tryDecrypt(caseDoc.title_enc, caseDoc.accessKeys, undefined);
-  const description = await tryDecrypt(caseDoc.description_enc, caseDoc.accessKeys, undefined);
-  const category = await tryDecrypt(caseDoc.category_enc, caseDoc.accessKeys, undefined);
-  const urgency = await tryDecrypt(caseDoc.urgency_enc, caseDoc.accessKeys, undefined);
-  const jurisdiction = await tryDecrypt(caseDoc.jurisdiction_enc, caseDoc.accessKeys, undefined);
-  const opposingParty = await tryDecrypt(caseDoc.opposingParty_enc, caseDoc.accessKeys, undefined);
-  const claimValue = await tryDecrypt(caseDoc.claimValue_enc, caseDoc.accessKeys, undefined);
-  const hearingDates = await tryDecrypt(caseDoc.hearingDates_enc, caseDoc.accessKeys, '[]');
-  const jurors = await tryDecrypt(caseDoc.jurors_enc, caseDoc.accessKeys, '[]');
-  const da = await tryDecrypt(caseDoc.da_enc, caseDoc.accessKeys, '{}');
-  const judge = await tryDecrypt(caseDoc.judge_enc, caseDoc.accessKeys, '{}');
-  const officers = await tryDecrypt(caseDoc.officers_enc, caseDoc.accessKeys, '[]');
-  const witnesses = await tryDecrypt(caseDoc.witnesses_enc, caseDoc.accessKeys, '[]');
-  const exhibits = await tryDecrypt(caseDoc.exhibits_enc, caseDoc.accessKeys, '[]');
-  const caseUpdates = await tryDecrypt(caseDoc.caseUpdates_enc, caseDoc.accessKeys, '[]');
+  const title = await tryDecrypt(caseDoc.title_enc, undefined);
+  const description = await tryDecrypt(caseDoc.description_enc, undefined);
+  const category = await tryDecrypt(caseDoc.category_enc, undefined);
+  const urgency = await tryDecrypt(caseDoc.urgency_enc, undefined);
+  const jurisdiction = await tryDecrypt(caseDoc.jurisdiction_enc, undefined);
+  const opposingParty = await tryDecrypt(caseDoc.opposingParty_enc, undefined);
+  const claimValue = await tryDecrypt(caseDoc.claimValue_enc, undefined);
+  const hearingDates = await tryDecrypt(caseDoc.hearingDates_enc, '[]');
+  const jurors = await tryDecrypt(caseDoc.jurors_enc, '[]');
+  const da = await tryDecrypt(caseDoc.da_enc, '{}');
+  const judge = await tryDecrypt(caseDoc.judge_enc, '{}');
+  const officers = await tryDecrypt(caseDoc.officers_enc, '[]');
+  const witnesses = await tryDecrypt(caseDoc.witnesses_enc, '[]');
+  const exhibits = await tryDecrypt(caseDoc.exhibits_enc, '[]');
+  const caseUpdates = await tryDecrypt(caseDoc.caseUpdates_enc, '[]');
 
   // Fetch names for client and lawyers
   let clientName = caseDoc.clientId ? caseDoc.clientId.toString() : 'Unknown';
@@ -127,10 +131,11 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
           </div>
           <div>
             {/* Show Add Client button at the top header */}
-            <LawyerClientAssigner 
+            <LawyerClientAssigner
               caseId={id}
               lawyerId={userId}
               encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''}
+              privateKey={privateKey}
             />
           </div>
         </div>
@@ -138,40 +143,32 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
 
       {/* Main Tabbed content */}
       <div className="rounded-xl border border-slate-200 bg-white p-6 shadow-sm">
-          <CaseTabs
-            overview={
-              <OverviewTab
-                caseId={caseDoc.caseId || `CASE-${caseDoc._id.toString().slice(-4)}`}
-                status={caseDoc.status as CaseStatus || 'PENDING_REVIEW'}
-                clientId={clientName}
-                lawyerIds={lawyerNames}
-                createdAt={caseDoc.createdAt ? new Date(caseDoc.createdAt).toISOString() : new Date().toISOString()}
-                updatedAt={caseDoc.updatedAt ? new Date(caseDoc.updatedAt).toISOString() : new Date().toISOString()}
-                title={title}
-                description={description}
-                category={category}
-                urgency={urgency}
-                jurisdiction={jurisdiction}
-                opposingParty={opposingParty}
-                claimValue={claimValue}
-              />
-            }
-            hearings={<HearingsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={hearingDates || '[]'} />}
-            notes={<NotesTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialUpdates={caseUpdates || '[]'} />}
-            messages={<MessagesTab caseId={caseDoc._id.toString()} />}
-            personnel={<PersonnelTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialDA={da || '{}'} initialJudge={judge || '{}'} initialOfficers={officers || '[]'} initialWitnesses={witnesses || '[]'} initialJurors={jurors || '[]'} />}
-            exhibits={<ExhibitsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={exhibits || '[]'} />}
-          />
+        <CaseTabs
+          overview={
+            <OverviewTab
+              caseId={caseDoc.caseId || `CASE-${caseDoc._id.toString().slice(-4)}`}
+              status={caseDoc.status as CaseStatus || 'PENDING_REVIEW'}
+              clientId={clientName}
+              lawyerIds={lawyerNames}
+              createdAt={caseDoc.createdAt ? new Date(caseDoc.createdAt).toISOString() : new Date().toISOString()}
+              updatedAt={caseDoc.updatedAt ? new Date(caseDoc.updatedAt).toISOString() : new Date().toISOString()}
+              title={title}
+              description={description}
+              category={category}
+              urgency={urgency}
+              jurisdiction={jurisdiction}
+              opposingParty={opposingParty}
+              claimValue={claimValue}
+            />
+          }
+          hearings={<HearingsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={hearingDates || '[]'} />}
+          notes={<NotesTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialUpdates={caseUpdates || '[]'} />}
+          messages={<MessagesTab caseId={caseDoc._id.toString()} aesKeyHex={aesKeyHex} currentUserId={userId} />}
+          personnel={<PersonnelTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialDA={da || '{}'} initialJudge={judge || '{}'} initialOfficers={officers || '[]'} initialWitnesses={witnesses || '[]'} initialJurors={jurors || '[]'} />}
+          exhibits={<ExhibitsTab caseId={caseDoc._id.toString()} encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''} initialData={exhibits || '[]'} />}
+        />
       </div>
 
-      {/* Script to inject private key into window just for the assignment component to use securely in memory */}
-      <Script
-        id="session-private-key"
-        strategy="beforeInteractive"
-        dangerouslySetInnerHTML={{
-          __html: `window.sessionPrivateKey = ${JSON.stringify(privateKey)};`
-        }}
-      />
     </div>
   );
 }

@@ -1,6 +1,7 @@
 'use client';
 
 import { SecureFieldEditor } from './SecureFieldEditor';
+import EncryptedExhibitUpload from './EncryptedExhibitUpload';
 
 interface ExhibitsTabProps {
   caseId: string;
@@ -38,6 +39,7 @@ export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsT
                   <tr>
                     <th className="px-4 py-3">Exhibit #</th>
                     <th className="px-4 py-3">Description</th>
+                    <th className="px-4 py-3">File</th>
                     <th className="px-4 py-3">Date Admitted</th>
                     <th className="px-4 py-3">Status</th>
                   </tr>
@@ -47,6 +49,16 @@ export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsT
                     <tr key={i} className="hover:bg-slate-50/50">
                       <td className="px-4 py-3 font-mono font-medium text-navy-core">{ex.number || `EX-${i+1}`}</td>
                       <td className="px-4 py-3 text-slate-900 whitespace-normal min-w-[200px]">{ex.description}</td>
+                      <td className="px-4 py-3">
+                        {ex.fileUrl ? (
+                          <div className="flex flex-col gap-1">
+                            <span className="text-[10px] text-slate-500 truncate max-w-[120px]" title={ex.fileName}>{ex.fileName || 'Encrypted File'}</span>
+                            <span className="text-[10px] font-semibold text-emerald-600">Attached (E2EE)</span>
+                          </div>
+                        ) : (
+                          <span className="text-slate-400 text-xs italic">No file</span>
+                        )}
+                      </td>
                       <td className="px-4 py-3 text-slate-500">{ex.date ? new Date(ex.date).toLocaleDateString() : 'N/A'}</td>
                       <td className="px-4 py-3">
                         <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${
@@ -76,7 +88,7 @@ export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsT
                     <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
                   </svg>
                 </button>
-                <div className="grid grid-cols-12 gap-3 mb-2">
+                <div className="grid grid-cols-12 gap-3 mb-3">
                   <div className="col-span-3">
                     <label className="text-xs font-semibold text-slate-500 block mb-1">Exhibit #</label>
                     <input type="text" value={ex.number || ''} onChange={e => { const c = [...data]; c[i].number = e.target.value; setData(c); }} className="w-full text-sm p-1.5 border border-slate-200 rounded" placeholder="e.g. A" />
@@ -95,14 +107,40 @@ export function ExhibitsTab({ caseId, encryptedCaseKey, initialData }: ExhibitsT
                     </select>
                   </div>
                 </div>
-                <div>
+                <div className="mb-3">
                   <label className="text-xs font-semibold text-slate-500 block mb-1">Description</label>
                   <textarea value={ex.description || ''} onChange={e => { const c = [...data]; c[i].description = e.target.value; setData(c); }} className="w-full text-sm p-1.5 border border-slate-200 rounded" rows={2} placeholder="Describe the exhibit..." />
+                </div>
+                <div>
+                  {ex.fileUrl ? (
+                    <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded">
+                      <div className="flex flex-col">
+                        <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">{ex.fileName || 'Attached File'}</span>
+                        <span className="text-[10px] text-emerald-600 font-semibold">File uploaded & encrypted</span>
+                      </div>
+                      <button 
+                        onClick={() => { const c = [...data]; c[i].fileUrl = ''; c[i].fileKey = ''; c[i].fileName = ''; setData(c); }}
+                        className="text-[10px] text-red-500 hover:underline"
+                      >
+                        Remove
+                      </button>
+                    </div>
+                  ) : (
+                    <EncryptedExhibitUpload 
+                      onUploadSuccess={(url, key, name) => {
+                        const c = [...data];
+                        c[i].fileUrl = url;
+                        c[i].fileKey = key;
+                        c[i].fileName = name;
+                        setData(c);
+                      }}
+                    />
+                  )}
                 </div>
               </div>
             ))}
             <button 
-              onClick={() => setData([...data, { number: '', date: '', status: 'Pending', description: '' }])}
+              onClick={() => setData([...data, { number: '', date: '', status: 'Pending', description: '', fileUrl: '', fileKey: '', fileName: '' }])}
               className="w-full py-2 border-2 border-dashed border-slate-200 rounded-lg text-sm font-semibold text-slate-500 hover:text-navy-core hover:border-navy-core/30 transition-colors"
             >
               + Log New Exhibit

@@ -14,6 +14,15 @@ export const ourFileRouter = {
       console.log("file url", file.url);
       return { uploadedBy: metadata.userId, url: file.url };
     }),
+  exhibitFile: f({ image: { maxFileSize: "32MB" }, pdf: { maxFileSize: "32MB" }, blob: { maxFileSize: "32MB" } })
+    .middleware(async ({ req }) => {
+      const userId = req.headers.get("x-user-id");
+      if (!userId) throw new Error("Unauthorized");
+      return { userId };
+    })
+    .onUploadComplete(async ({ metadata, file }) => {
+      return { uploadedBy: metadata.userId, url: file.url };
+    }),
 } satisfies FileRouter;
 
 export type OurFileRouter = typeof ourFileRouter;

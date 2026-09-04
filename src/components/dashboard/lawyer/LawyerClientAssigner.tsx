@@ -8,6 +8,7 @@ interface LawyerClientAssignerProps {
   caseId: string;
   lawyerId: string;
   encryptedCaseKey: string;
+  privateKey: any;
 }
 
 interface ClientUser {
@@ -17,7 +18,7 @@ interface ClientUser {
   publicKey: string;
 }
 
-export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey }: LawyerClientAssignerProps) {
+export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, privateKey }: LawyerClientAssignerProps) {
   const router = useRouter();
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'select' | 'create'>('select');
@@ -54,8 +55,6 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey }: Law
 
   const executeAssignment = async (targetClientId: string, latestClients?: ClientUser[]) => {
 
-    // Attempt to grab the private key from the window object (injected by SSR)
-    const privateKey = (window as any).sessionPrivateKey;
     if (!privateKey) {
       alert('Private key not found in session. Please log in again.');
       return;

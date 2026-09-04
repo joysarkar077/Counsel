@@ -1,6 +1,6 @@
-import { notFound } from 'next/navigation';
+import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
-import { cookies } from 'next/headers';
+import { cookies, headers } from 'next/headers';
 import { CaseTabs } from '@/components/dashboard/cases/case-detail/case-tabs';
 import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-tab';
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
@@ -37,6 +37,7 @@ async function fetchCase(id: string, cookieHeader: string) {
     jurisdiction_enc: string;
     opposingParty_enc: string;
     claimValue_enc: string;
+    hearingDates_enc?: string;
     accessKeys: any[];
     lawyerIds: string[];
     status: CaseStatus;
@@ -55,16 +56,12 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
 
   // Fetch the user's RSA keys for decryption
   await dbConnect();
-  // Decode session token to get user ID
-  const sessionToken = cookieStore.get('session_token')?.value;
-  let userId = '';
-  if (sessionToken) {
-    try {
-      const payloadStr = Buffer.from(sessionToken.split('.')[1] || '', 'base64url').toString('utf-8');
-      userId = JSON.parse(payloadStr).userId;
-    } catch (e) {
-      // ignore
-    }
+  
+  const headersList = await headers();
+  const userId = headersList.get('x-user-id');
+  
+  if (!userId) {
+    redirect('/login');
   }
 
   const user = await User.findById(userId).lean();
@@ -78,31 +75,42 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     }
   }
 
-  const tryDecrypt = async (encryptedJsonStr: string | undefined, accessKeys: any[], fallback?: string) => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  // Derive the shared AES case key once, used for both field decryption and messaging
+  let aesKeyHex = '';
+  const myAccessKey = caseData.accessKeys?.find((ak: any) => ak.userId?.toString() === userId);
+  if (myAccessKey && privateKey) {
     try {
-      const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      aesKeyHex = decrypt(myAccessKey.encryptedCaseKey, privateKey);
+    } catch (err) {
+      console.error('Failed to decrypt AES case key for client:', err);
+    }
+  }
 
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
+  const tryDecrypt = async (encryptedJsonStr: string | undefined, fallback?: string) => {
+    if (!encryptedJsonStr || !aesKeyHex) return fallback;
+    try {
       const aesKey = await importAESKey(aesKeyHex);
-
       const payload = JSON.parse(encryptedJsonStr);
       if (!payload.ciphertextHex || !payload.ivHex) return fallback;
-
       return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
     } catch {
       return fallback;
     }
   };
 
-  const title = await tryDecrypt(caseData.title_enc, caseData.accessKeys, undefined);
-  const description = await tryDecrypt(caseData.description_enc, caseData.accessKeys, undefined);
-  const category = await tryDecrypt(caseData.category_enc, caseData.accessKeys, undefined);
-  const urgency = await tryDecrypt(caseData.urgency_enc, caseData.accessKeys, undefined);
-  const jurisdiction = await tryDecrypt(caseData.jurisdiction_enc, caseData.accessKeys, undefined);
-  const opposingParty = await tryDecrypt(caseData.opposingParty_enc, caseData.accessKeys, undefined);
-  const claimValue = await tryDecrypt(caseData.claimValue_enc, caseData.accessKeys, undefined);
+  const title = await tryDecrypt(caseData.title_enc, undefined);
+  const description = await tryDecrypt(caseData.description_enc, undefined);
+  const category = await tryDecrypt(caseData.category_enc, undefined);
+  const urgency = await tryDecrypt(caseData.urgency_enc, undefined);
+  const jurisdiction = await tryDecrypt(caseData.jurisdiction_enc, undefined);
+  const opposingParty = await tryDecrypt(caseData.opposingParty_enc, undefined);
+  const claimValue = await tryDecrypt(caseData.claimValue_enc, undefined);
+  const hearingDates = await tryDecrypt(caseData.hearingDates_enc, '[]');
+
+  let parsedHearings: any[] = [];
+  try {
+    parsedHearings = JSON.parse(hearingDates || '[]');
+  } catch (e) {}
 
   return (
     <div className="animate-fade-up">
@@ -149,10 +157,29 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
               />
             }
             personnel={<div className="p-10 text-center text-slate-500 italic">Personnel details are restricted to legal counsel.</div>}
-            hearings={<div className="p-10 text-center text-slate-500 italic">Hearings are managed by your attorney.</div>}
+            hearings={
+              parsedHearings.length === 0 ? (
+                <div className="p-10 text-center text-slate-500 italic">No hearings scheduled yet.</div>
+              ) : (
+                <div className="space-y-4">
+                  <h3 className="text-lg font-semibold text-slate-800">Scheduled Hearings</h3>
+                  <ul className="space-y-3">
+                    {parsedHearings.map((h: any, i: number) => (
+                      <li key={i} className="p-4 bg-slate-50 rounded-xl border border-slate-200 flex flex-col gap-1">
+                        <p className="font-bold text-navy-core">
+                          {h.date ? new Date(h.date).toLocaleString('en-US', { dateStyle: 'long', timeStyle: 'short' }) : 'Unscheduled'}
+                        </p>
+                        <p className="text-sm font-medium text-slate-700">{h.title || 'Untitled Hearing'}</p>
+                        {h.notes && <p className="text-sm text-slate-500 mt-1">{h.notes}</p>}
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )
+            }
             notes={<div className="p-10 text-center text-slate-500 italic">Internal notes are restricted to legal counsel.</div>}
             exhibits={<div className="p-10 text-center text-slate-500 italic">Exhibits are managed by your attorney.</div>}
-            messages={<MessagesTab caseId={caseData._id} />}
+            messages={<MessagesTab caseId={caseData._id} aesKeyHex={aesKeyHex} currentUserId={userId} />}
           />
       </div>
     </div>

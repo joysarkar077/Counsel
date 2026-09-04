@@ -1,64 +1,267 @@
-/**
- * Messages tab — placeholder shell for the encrypted chat interface.
- *
- * The full implementation is Task 8 (Messages UI Integration):
- * - Poll-based or WebSocket chat
- * - ECIES-encrypted message bodies
- * - RSA-signed messages for non-repudiation
- * - Lawyer thread switching for multi-client cases
- */
-export function MessagesTab({ caseId }: { caseId: string }) {
-  return (
-    <div className="flex flex-col h-[420px] rounded-xl border border-border bg-bg-card overflow-hidden">
-      {/* Chat header */}
-      <div className="flex items-center justify-between px-5 py-3.5 border-b border-border">
-        <div className="flex items-center gap-2">
-          <svg
-            viewBox="0 0 24 24"
-            fill="none"
-            stroke="currentColor"
-            strokeWidth="2"
-            className="h-4 w-4 text-navy-core"
-            aria-hidden
-          >
-            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-          </svg>
-          <span className="text-xs font-semibold text-navy-core">End-to-end encrypted</span>
-        </div>
-        <code className="text-xs text-text-muted">{caseId}</code>
-      </div>
+'use client';
 
-      {/* Empty state */}
-      <div className="flex flex-1 flex-col items-center justify-center text-center px-6">
-        <svg
-          viewBox="0 0 24 24"
-          fill="none"
-          stroke="currentColor"
-          strokeWidth="1.5"
-          className="mb-4 h-10 w-10 text-text-muted"
-          aria-hidden
-        >
-          <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
-        </svg>
-        <p className="text-sm font-semibold text-text-secondary">No messages yet</p>
-        <p className="mt-1 text-xs text-text-muted max-w-xs">
-          Secure messaging between you and your lawyer will be available here. Messages are
-          ECIES-encrypted and RSA-signed for non-repudiation.
+/**
+ * MessagesTab — Real-time E2EE chat between client and lawyer.
+ *
+ * Encryption: AES-256-GCM using the shared AES case key, which is decrypted
+ * server-side from the user's RSA private key and passed in as `aesKeyHex`.
+ * Messages are encrypted on the client before being sent, and decrypted
+ * on the client after being fetched. The server never sees plaintext.
+ */
+
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { importAESKey, encryptText, decryptText } from '@/lib/crypto/textCrypto';
+
+interface RawMessage {
+  _id: string;
+  caseId: string;
+  senderId: string;
+  ciphertext: string; // JSON string: { ciphertextHex, ivHex }
+  createdAt: string;
+}
+
+interface DecryptedMessage {
+  id: string;
+  senderId: string;
+  text: string;
+  createdAt: Date;
+  isMine: boolean;
+}
+
+interface MessagesTabProps {
+  caseId: string;
+  /** The AES-256 case key as a hex string, decrypted server-side from the user's RSA key. */
+  aesKeyHex: string;
+  /** The current user's MongoDB ObjectId string. */
+  currentUserId: string;
+}
+
+const POLL_INTERVAL_MS = 5000;
+
+export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabProps) {
+  const [messages, setMessages] = useState<DecryptedMessage[]>([]);
+  const [input, setInput] = useState('');
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState('');
+  const [loading, setLoading] = useState(true);
+  const bottomRef = useRef<HTMLDivElement>(null);
+  const aesKeyRef = useRef<CryptoKey | null>(null);
+  const lastMessageCountRef = useRef(0);
+
+  // Import the AES key once on mount
+  useEffect(() => {
+    if (!aesKeyHex) return;
+    importAESKey(aesKeyHex)
+      .then((key) => { aesKeyRef.current = key; })
+      .catch((err) => console.error('Failed to import AES key for messages:', err));
+  }, [aesKeyHex]);
+
+  const fetchAndDecrypt = useCallback(async () => {
+    if (!aesKeyRef.current) return;
+    try {
+      const res = await fetch(`/api/messages?caseId=${caseId}`);
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+
+      const decrypted: DecryptedMessage[] = [];
+      for (const msg of json.data as RawMessage[]) {
+        try {
+          const payload = JSON.parse(msg.ciphertext) as { ciphertextHex: string; ivHex: string };
+          const text = await decryptText(payload.ciphertextHex, payload.ivHex, aesKeyRef.current!);
+          decrypted.push({
+            id: msg._id,
+            senderId: msg.senderId,
+            text,
+            createdAt: new Date(msg.createdAt),
+            isMine: msg.senderId === currentUserId,
+          });
+        } catch {
+          // Skip messages we can't decrypt (e.g., from before key rotation)
+        }
+      }
+      setMessages(decrypted);
+
+      // Scroll to bottom only when new messages arrive
+      if (decrypted.length !== lastMessageCountRef.current) {
+        lastMessageCountRef.current = decrypted.length;
+        setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
+      }
+    } catch (err: any) {
+      console.error('Failed to fetch messages:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, [caseId, currentUserId]);
+
+  // Initial fetch + polling
+  useEffect(() => {
+    fetchAndDecrypt();
+    const interval = setInterval(fetchAndDecrypt, POLL_INTERVAL_MS);
+    return () => clearInterval(interval);
+  }, [fetchAndDecrypt]);
+
+  const handleSend = async () => {
+    const text = input.trim();
+    if (!text || !aesKeyRef.current || sending) return;
+    setSending(true);
+    setError('');
+    try {
+      const { ciphertextHex, ivHex } = await encryptText(text, aesKeyRef.current);
+      const ciphertext = JSON.stringify({ ciphertextHex, ivHex });
+
+      const res = await fetch('/api/messages', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ caseId, ciphertext }),
+      });
+      const json = await res.json();
+      if (!json.success) throw new Error(json.error);
+
+      setInput('');
+      // Immediately fetch to show the sent message
+      await fetchAndDecrypt();
+    } catch (err: any) {
+      setError('Failed to send message. Please try again.');
+    } finally {
+      setSending(false);
+    }
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const formatTime = (date: Date) =>
+    date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
+
+  const formatDate = (date: Date) =>
+    date.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+
+  // Group messages by date for date separators
+  const grouped: { date: string; msgs: DecryptedMessage[] }[] = [];
+  for (const msg of messages) {
+    const dateStr = formatDate(msg.createdAt);
+    const last = grouped[grouped.length - 1];
+    if (!last || last.date !== dateStr) {
+      grouped.push({ date: dateStr, msgs: [msg] });
+    } else {
+      last.msgs.push(msg);
+    }
+  }
+
+  if (!aesKeyHex) {
+    return (
+      <div className="flex flex-col h-[520px] rounded-xl border border-border bg-bg-card overflow-hidden items-center justify-center">
+        <p className="text-sm text-slate-500 italic">
+          You do not have an encryption key for this case yet. Ask your attorney to share the case with you.
         </p>
       </div>
+    );
+  }
 
-      {/* Disabled input bar */}
-      <div className="flex items-center gap-3 px-4 py-3 border-t border-border bg-bg-page">
+  return (
+    <div className="flex flex-col rounded-xl border border-slate-200 bg-white overflow-hidden shadow-sm" style={{ height: '560px' }}>
+      {/* Header */}
+      <div className="flex items-center justify-between px-5 py-3.5 border-b border-slate-100 bg-slate-50 flex-shrink-0">
+        <div className="flex items-center gap-2">
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-emerald-600" aria-hidden>
+            <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          </svg>
+          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">End-to-End Encrypted</span>
+        </div>
+        <span className="text-xs text-slate-400 font-mono">Polling every 5s</span>
+      </div>
+
+      {/* Message list */}
+      <div className="flex-1 overflow-y-auto px-5 py-4 space-y-4">
+        {loading ? (
+          <div className="flex items-center justify-center h-full">
+            <div className="flex flex-col items-center gap-3">
+              <div className="w-6 h-6 border-2 border-slate-300 border-t-slate-700 rounded-full animate-spin" />
+              <p className="text-xs text-slate-400">Decrypting messages…</p>
+            </div>
+          </div>
+        ) : messages.length === 0 ? (
+          <div className="flex flex-col items-center justify-center h-full text-center gap-3">
+            <div className="w-14 h-14 rounded-full bg-slate-100 flex items-center justify-center">
+              <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" className="w-7 h-7 text-slate-400" aria-hidden>
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+              </svg>
+            </div>
+            <p className="text-sm font-semibold text-slate-600">No messages yet</p>
+            <p className="text-xs text-slate-400 max-w-xs">Start the conversation. All messages are encrypted before leaving your device.</p>
+          </div>
+        ) : (
+          grouped.map(({ date, msgs }) => (
+            <div key={date}>
+              {/* Date separator */}
+              <div className="flex items-center gap-3 my-4">
+                <div className="flex-1 h-px bg-slate-100" />
+                <span className="text-xs font-semibold text-slate-400">{date}</span>
+                <div className="flex-1 h-px bg-slate-100" />
+              </div>
+
+              <div className="space-y-2">
+                {msgs.map((msg) => (
+                  <div
+                    key={msg.id}
+                    className={`flex ${msg.isMine ? 'justify-end' : 'justify-start'}`}
+                  >
+                    <div
+                      className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${
+                        msg.isMine
+                          ? 'bg-slate-900 text-white rounded-br-sm'
+                          : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                      }`}
+                    >
+                      <p className="text-sm leading-relaxed break-words">{msg.text}</p>
+                      <p className={`text-[10px] mt-1 ${msg.isMine ? 'text-slate-400' : 'text-slate-500'} text-right`}>
+                        {formatTime(msg.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            </div>
+          ))
+        )}
+        <div ref={bottomRef} />
+      </div>
+
+      {/* Error */}
+      {error && (
+        <div className="px-5 py-2 bg-red-50 border-t border-red-100">
+          <p className="text-xs text-red-600">{error}</p>
+        </div>
+      )}
+
+      {/* Input bar */}
+      <div className="flex items-center gap-3 px-4 py-3 border-t border-slate-100 bg-slate-50 flex-shrink-0">
         <input
           type="text"
-          disabled
-          placeholder="Messaging coming in Task 8…"
-          className="flex-1 rounded-lg border border-border bg-white px-3 py-2 text-sm text-text-muted placeholder:text-text-muted disabled:cursor-not-allowed opacity-60"
+          value={input}
+          onChange={(e) => setInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="Type an encrypted message… (Enter to send)"
+          disabled={sending || loading}
+          className="flex-1 rounded-xl border border-slate-200 bg-white px-4 py-2.5 text-sm text-slate-800 placeholder:text-slate-400 focus:outline-none focus:ring-2 focus:ring-slate-900/20 focus:border-slate-400 disabled:opacity-50 transition-all"
         />
         <button
-          disabled
-          className="rounded-lg bg-navy-core px-4 py-2 text-sm font-semibold text-white opacity-40 cursor-not-allowed"
+          onClick={handleSend}
+          disabled={!input.trim() || sending || loading}
+          className="rounded-xl bg-slate-900 hover:bg-slate-700 px-4 py-2.5 text-sm font-semibold text-white disabled:opacity-40 disabled:cursor-not-allowed transition-all flex items-center gap-2 flex-shrink-0"
         >
+          {sending ? (
+            <div className="w-4 h-4 border-2 border-white/40 border-t-white rounded-full animate-spin" />
+          ) : (
+            <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4" aria-hidden>
+              <line x1="22" y1="2" x2="11" y2="13" />
+              <polygon points="22 2 15 22 11 13 2 9 22 2" />
+            </svg>
+          )}
           Send
         </button>
       </div>

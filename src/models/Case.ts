@@ -43,4 +43,9 @@ const CaseSchema = new Schema<ICase>({
   hmac: { type: String, required: true },
 }, { timestamps: true });
 
-export const Case: Model<ICase> = mongoose.models.Case || mongoose.model<ICase>('Case', CaseSchema);
+// Prevent mongoose from caching the old schema during hot-reloads
+if (mongoose.models.Case) {
+  delete mongoose.models.Case;
+}
+
+export const Case: Model<ICase> = mongoose.model<ICase>('Case', CaseSchema);
