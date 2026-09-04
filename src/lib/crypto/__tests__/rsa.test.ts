@@ -64,30 +64,31 @@ describe('encrypt / decrypt', () => {
 });
 
 describe('sign / verify', () => {
-  test('valid signature verifies correctly', () => {
+  test('valid signature verifies correctly', async () => {
     const msg = 'case_status_change|ACTIVE|CLOSE_REQUESTED';
-    const sig = sign(msg, keyPair.privateKey);
-    assert.equal(verify(msg, sig, keyPair.publicKey), true);
+    const sig = await sign(msg, keyPair.privateKey);
+    assert.equal(await verify(msg, sig, keyPair.publicKey), true);
   });
 
-  test('tampered message fails verification', () => {
+  test('tampered message fails verification', async () => {
     const msg = 'case_status_change|ACTIVE|CLOSE_REQUESTED';
-    const sig = sign(msg, keyPair.privateKey);
-    const tamperedMsg = 'case_status_change|ACTIVE|CLOSED';
-    assert.equal(verify(tamperedMsg, sig, keyPair.publicKey), false);
+    const sig = await sign(msg, keyPair.privateKey);
+    const tamperedMsg = '{"user_id":"123","role":"super_admin"}';
+    assert.equal(await verify(tamperedMsg, sig, keyPair.publicKey), false);
   });
 
-  test('tampered signature fails verification', () => {
+  test('tampered signature fails verification', async () => {
     const msg = 'case_status_change|ACTIVE|CLOSE_REQUESTED';
-    const sig = sign(msg, keyPair.privateKey);
+    const sig = await sign(msg, keyPair.privateKey);
+    // Tamper with the signature string
     const tamperedSig = sig.slice(0, -4) + 'ffff';
-    assert.equal(verify(msg, tamperedSig, keyPair.publicKey), false);
+    assert.equal(await verify(msg, tamperedSig, keyPair.publicKey), false);
   });
 
-  test('signature from wrong key fails verification', () => {
+  test('signature from wrong key fails verification', async () => {
     const msg = 'some important state change';
     const wrongKeyPair = generateKeyPair(TEST_KEY_BITS);
-    const sig = sign(msg, wrongKeyPair.privateKey);
-    assert.equal(verify(msg, sig, keyPair.publicKey), false);
+    const sig = await sign(msg, keyPair.privateKey);
+    assert.equal(await verify(msg, sig, keyPair.publicKey), false);
   });
 });

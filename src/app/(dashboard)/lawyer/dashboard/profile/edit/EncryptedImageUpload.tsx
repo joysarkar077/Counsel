@@ -54,7 +54,8 @@ export default function EncryptedImageUpload({ onUploadSuccess }: EncryptedImage
       setProgress(30);
 
       // 2. Prepare for Uploadthing
-      const encryptedFile = new File([encryptedBlob], file.name, { type: file.type || 'image/jpeg' });
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_');
+      const encryptedFile = new File([encryptedBlob], safeName, { type: file.type || 'image/jpeg' });
       currentKeyPayload.current = `${aesKeyHex}:${ivHex}`;
 
       setProgress(50);

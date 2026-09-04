@@ -10,11 +10,11 @@ import { requireRole } from '@/lib/auth/rbac';
 /**
  * POST /api/cases
  *
- * Creates a new case request submitted by a client.
- * - Reads the authenticated user from the session cookie
- * - Encrypts title and description with ECIES using the client's ECC public key
- * - Attaches an HMAC fingerprint to the stored record (tamper detection)
- * - Returns the new case id on success
+ * Creates a new case request.
+ * - Receives pre-encrypted E2EE data (AES ciphertexts) from the client.
+ * - Receives `accessKeys` containing the AES key encrypted for authorized users (Creator + Admins).
+ * - Attaches an HMAC fingerprint to the stored record (tamper detection).
+ * - Returns the new case id on success.
  */
 const postHandler = async function POST(req: Request) {
   try {
@@ -28,57 +28,39 @@ const postHandler = async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    if (user.role !== 'client') {
+    if (user.role !== 'client' && user.role !== 'lawyer') {
       return NextResponse.json(
-        { success: false, error: 'Only clients may submit case requests' },
+        { success: false, error: 'Only clients and attorneys may submit case requests' },
         { status: 403 },
       );
     }
 
     // --- Validate request body ---
     const body = await req.json();
-    const title: string = (body.title ?? '').trim();
-    const description: string = (body.description ?? '').trim();
-    const opposingParty: string = (body.opposingParty ?? '').trim();
-    const claimValue: string = (body.claimValue ?? '').trim();
-    const category: string = (body.category ?? '').trim();
-    const urgency: string = (body.urgency ?? '').trim();
-    const jurisdiction: string = (body.jurisdiction ?? '').trim();
-
-    if (!title || !description || !opposingParty || !category || !urgency || !jurisdiction) {
-      return NextResponse.json(
-        { success: false, error: 'Missing required fields' },
-        { status: 400 },
-      );
-    }
-
-    if (title.length > 200) {
-      return NextResponse.json(
-        { success: false, error: 'Title must be 200 characters or fewer' },
-        { status: 400 },
-      );
-    }
-
-    // --- Encrypt case content with the client's public key ---
-    // Note: The comment originally said ECC, but User generation is currently using RSA.
-    // Parsing the JSON string into an RSAPublicKey object.
-    const publicKey: RSAPublicKey = JSON.parse(user.publicKey);
     
-    const titleEncBundle = encrypt(title, publicKey);
-    const descEncBundle = encrypt(description, publicKey);
-    const opposingPartyEncBundle = encrypt(opposingParty, publicKey);
-    const claimValueEncBundle = claimValue ? encrypt(claimValue, publicKey) : null;
-    const categoryEncBundle = encrypt(category, publicKey);
-    const urgencyEncBundle = encrypt(urgency, publicKey);
-    const jurisdictionEncBundle = encrypt(jurisdiction, publicKey);
+    // The client should send the data already encrypted
+    const title_enc: string = body.title_enc;
+    const description_enc: string = body.description_enc;
+    const opposingParty_enc: string = body.opposingParty_enc;
+    const claimValue_enc: string = body.claimValue_enc || '';
+    const category_enc: string = body.category_enc;
+    const urgency_enc: string = body.urgency_enc;
+    const jurisdiction_enc: string = body.jurisdiction_enc;
+    const accessKeys: { userId: string, encryptedCaseKey: string }[] = body.accessKeys;
 
-    const title_enc = JSON.stringify(titleEncBundle);
-    const description_enc = JSON.stringify(descEncBundle);
-    const opposingParty_enc = JSON.stringify(opposingPartyEncBundle);
-    const claimValue_enc = claimValueEncBundle ? JSON.stringify(claimValueEncBundle) : '';
-    const category_enc = JSON.stringify(categoryEncBundle);
-    const urgency_enc = JSON.stringify(urgencyEncBundle);
-    const jurisdiction_enc = JSON.stringify(jurisdictionEncBundle);
+    if (!title_enc || !description_enc || !opposingParty_enc || !category_enc || !urgency_enc || !jurisdiction_enc || !accessKeys) {
+      return NextResponse.json(
+        { success: false, error: 'Missing required encrypted fields or accessKeys' },
+        { status: 400 },
+      );
+    }
+
+    if (!Array.isArray(accessKeys) || accessKeys.length === 0) {
+      return NextResponse.json(
+        { success: false, error: 'accessKeys array is required and must not be empty' },
+        { status: 400 },
+      );
+    }
 
     // --- Compute HMAC fingerprint over the encrypted payload ---
     // TODO(PersonC): swap computeHmac() for the real hmac.ts implementation when ready.
@@ -96,6 +78,8 @@ const postHandler = async function POST(req: Request) {
       category_enc,
       urgency_enc,
       jurisdiction_enc,
+      lawyerIds: user.role === 'lawyer' ? [userId] : [],
+      accessKeys,
       status: 'PENDING_REVIEW',
       timeline: [{
         action: 'Case Submitted',

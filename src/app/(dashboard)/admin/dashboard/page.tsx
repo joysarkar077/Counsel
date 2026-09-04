@@ -22,8 +22,24 @@ export default async function AdminDashboardPage() {
         </div>
       </div>
       
-      <div className="bg-white rounded-xl border border-slate-200/60 shadow-subtle p-6">
-         <p className="text-slate-500 text-sm">Admin overview coming soon.</p>
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+        <Link 
+          href="/admin/dashboard/cases"
+          className="group bg-white rounded-xl border border-slate-200/60 shadow-sm p-6 hover:shadow-md hover:border-navy-core/40 transition-all block"
+        >
+          <div className="w-12 h-12 bg-blue-50 text-blue-600 rounded-lg flex items-center justify-center mb-4 group-hover:scale-105 transition-transform">
+            <svg className="w-6 h-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+            </svg>
+          </div>
+          <h2 className="text-lg font-bold text-slate-900 mb-1 group-hover:text-navy-core transition-colors">Platform Cases</h2>
+          <p className="text-sm text-slate-500 font-medium">Review and assign all E2EE case files submitted across the platform.</p>
+        </Link>
+        
+        <div className="bg-white rounded-xl border border-slate-200/60 shadow-sm p-6 opacity-60">
+           <h2 className="text-lg font-bold text-slate-900 mb-1">User Management</h2>
+           <p className="text-sm text-slate-500 font-medium">Manage attorneys and clients (Coming Soon).</p>
+        </div>
       </div>
     </div>
   );

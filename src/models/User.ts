@@ -59,6 +59,7 @@ const UserSchema: Schema = new Schema({
   activeCases: { type: Number, default: 0 },
   successRate: { type: String },
   joinDate: { type: Date },
+  fullName: { type: String }, // Plaintext name for admin routing/display
   address_enc: { type: String },
   bloodGroup_enc: { type: String },
   avatarUrl: { type: String },

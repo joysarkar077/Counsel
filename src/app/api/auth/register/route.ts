@@ -33,7 +33,7 @@ export async function POST(req: Request) {
     // 2. Encrypt PII
     const username_enc = encrypt(username, publicKey);
     const email_enc = encrypt(email, publicKey);
-    const contact_enc = encrypt(contact || '', publicKey);
+    const contact_enc = encrypt(contact || 'None', publicKey);
 
     // 3. Hash Password
     // our from-scratch PBKDF2 hashPassword automatically generates the salt
@@ -41,6 +41,7 @@ export async function POST(req: Request) {
 
     // 4. Save to DB
     const newUser = new User({
+      fullName: username, // plaintext for admin display
       username_enc,
       email_enc,
       emailHash,
@@ -57,7 +58,11 @@ export async function POST(req: Request) {
 
     await appendEntry(newUser.id, 'USER_REGISTERED', `User registered with email hash ${emailHash}`);
 
-    return NextResponse.json({ message: 'User registered successfully' }, { status: 201 });
+    return NextResponse.json({ 
+      success: true, 
+      message: 'User registered successfully',
+      data: { id: newUser.id }
+    }, { status: 201 });
   } catch (error: any) {
     console.error('Registration error:', error);
     return NextResponse.json({ error: 'Internal Server Error' }, { status: 500 });

@@ -11,7 +11,10 @@ interface Tab {
 }
 
 interface CaseTabsProps {
-  children: (activeTab: TabId) => React.ReactNode;
+  overview: React.ReactNode;
+  hearings: React.ReactNode;
+  notes: React.ReactNode;
+  messages: React.ReactNode;
 }
 
 const TABS: Tab[] = [
@@ -59,7 +62,7 @@ const TABS: Tab[] = [
   },
 ];
 
-export function CaseTabs({ children }: CaseTabsProps) {
+export function CaseTabs({ overview, hearings, notes, messages }: CaseTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
 
   return (
@@ -90,14 +93,16 @@ export function CaseTabs({ children }: CaseTabsProps) {
         })}
       </div>
 
-      {/* Tab panel */}
       <div
         id={`tabpanel-${activeTab}`}
         role="tabpanel"
         aria-labelledby={`tab-${activeTab}`}
         className="pt-6"
       >
-        {children(activeTab)}
+        {activeTab === 'overview' && overview}
+        {activeTab === 'hearings' && hearings}
+        {activeTab === 'notes' && notes}
+        {activeTab === 'messages' && messages}
       </div>
     </div>
   );

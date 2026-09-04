@@ -9,6 +9,11 @@ const TimelineEventSchema = new Schema<ITimelineEvent>({
   actorId: { type: String, required: true }
 }, { _id: false });
 
+const AccessKeySchema = new Schema({
+  userId: { type: String, required: true },
+  encryptedCaseKey: { type: String, required: true },
+}, { _id: false });
+
 const CaseSchema = new Schema<ICase>({
   caseId: { type: String, required: true, unique: true },
   clientId: { type: String, required: true },
@@ -20,6 +25,7 @@ const CaseSchema = new Schema<ICase>({
   urgency_enc: { type: String, required: true },
   jurisdiction_enc: { type: String, required: true },
   lawyerIds: { type: [String], default: [] },
+  accessKeys: { type: [AccessKeySchema], default: [] },
   status: {
     type: String,
     enum: ['PENDING_REVIEW', 'ACTIVE', 'CLOSE_REQUESTED', 'CLOSED', 'REJECTED'],

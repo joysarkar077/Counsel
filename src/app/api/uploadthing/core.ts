@@ -3,7 +3,7 @@ import { createUploadthing, type FileRouter } from "uploadthing/next";
 const f = createUploadthing();
 
 export const ourFileRouter = {
-  profileImage: f({ image: { maxFileSize: "4MB", maxFileCount: 1 } })
+  profileImage: f({ image: { maxFileSize: "16MB", maxFileCount: 1 } })
     .middleware(async ({ req }) => {
       const userId = req.headers.get("x-user-id");
       if (!userId) throw new Error("Unauthorized");
