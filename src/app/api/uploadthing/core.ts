@@ -16,9 +16,7 @@ export const ourFileRouter = {
     }),
 
   caseAttachment: f({ 
-    image: { maxFileSize: "16MB", maxFileCount: 4 }, 
-    pdf: { maxFileSize: "16MB", maxFileCount: 4 },
-    text: { maxFileSize: "16MB", maxFileCount: 4 }
+    blob: { maxFileSize: "16MB", maxFileCount: 4 }
   })
     .middleware(async ({ req }) => {
       const userId = req.headers.get("x-user-id");
