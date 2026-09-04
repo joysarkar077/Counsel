@@ -73,6 +73,12 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
     assignedLawyers = await User.find({ _id: { $in: caseDoc.lawyerIds } }, 'fullName').lean();
   }
 
+  // Fetch client details if assigned
+  let assignedClient: any = null;
+  if (caseDoc.clientId) {
+    assignedClient = await User.findById(caseDoc.clientId).select('fullName').lean();
+  }
+
   return (
     <div className="animate-fade-up max-w-5xl mx-auto pb-10 space-y-6">
       {/* Header */}
@@ -163,7 +169,15 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
               
               <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm mt-6">
               <h3 className="text-sm font-semibold text-slate-900 mb-3 border-b border-slate-100 pb-2">Assign Client</h3>
-              {caseDoc.clientId ? (
+              {assignedClient ? (
+                <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-100 flex items-center justify-between">
+                  <div className="flex flex-col gap-0.5">
+                    <span className="font-bold text-blue-900">{assignedClient.fullName || 'Unknown Client'}</span>
+                    <span className="text-xs opacity-75">Client Assigned</span>
+                  </div>
+                  <code className="text-[10px] opacity-60">{caseDoc.clientId}</code>
+                </div>
+              ) : caseDoc.clientId ? (
                 <div className="p-3 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-100 flex items-center justify-between">
                   <span>Client Assigned</span>
                   <code className="text-xs">{caseDoc.clientId}</code>

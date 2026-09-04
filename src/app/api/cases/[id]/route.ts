@@ -77,3 +77,26 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
 }
 
 export const PATCH = requireRole(['lawyer', 'admin', 'super_admin'])(patchHandler);
+
+const deleteHandler = async function DELETE(req: Request, { params }: { params: Promise<{ id: string }> }) {
+  try {
+    await dbConnect();
+    const { id } = await params;
+    const userId = (req as any).userId;
+    
+    const deletedCase = await Case.findByIdAndDelete(id);
+
+    if (!deletedCase) {
+      return NextResponse.json({ success: false, error: 'Case not found' }, { status: 404 });
+    }
+
+    await appendEntry(userId, 'CASE_DELETED', `Deleted case ${deletedCase.caseId}`);
+
+    return NextResponse.json({ success: true, message: 'Case deleted successfully' });
+  } catch (error: any) {
+    console.error('DELETE /api/cases/[id] error:', error);
+    return NextResponse.json({ success: false, error: 'Failed to delete case' }, { status: 500 });
+  }
+}
+
+export const DELETE = requireRole(['admin', 'super_admin'])(deleteHandler);
