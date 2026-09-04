@@ -109,7 +109,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       {/* Header */}
       <div className="mb-6">
         <Link
-          href="/dashboard/cases"
+          href="/client/dashboard/cases"
           className="mb-4 inline-flex items-center gap-1.5 text-sm text-text-muted hover:text-navy-core transition-colors"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden>
