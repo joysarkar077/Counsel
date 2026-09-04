@@ -78,7 +78,24 @@ const postHandler = async function POST(req: Request) {
     }
 
     // --- Compute HMAC fingerprint over the encrypted payload ---
-    const hmacPayload = `${finalClientId}|${title_enc}|${description_enc}|${category_enc}|${urgency_enc}|${jurisdiction_enc}|${opposingParty_enc}|${claimValue_enc}`;
+    const hmacPayload = [
+      finalClientId,
+      title_enc,
+      description_enc,
+      category_enc,
+      urgency_enc,
+      jurisdiction_enc,
+      opposingParty_enc,
+      claimValue_enc,
+      '', // hearingDates_enc
+      '', // jurors_enc
+      '', // da_enc
+      '', // judge_enc
+      '', // officers_enc
+      '', // witnesses_enc
+      '', // exhibits_enc
+      ''  // caseUpdates_enc
+    ].join('|');
     const hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
 
     // --- Persist ---

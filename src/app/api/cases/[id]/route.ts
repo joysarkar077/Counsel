@@ -41,7 +41,24 @@ const getHandler = async function GET(req: Request, { params }: { params: Promis
     }
 
     // --- Verify HMAC to detect database tampering ---
-    const hmacPayload = `${caseDoc.clientId}|${caseDoc.title_enc}|${caseDoc.description_enc}|${caseDoc.category_enc}|${caseDoc.urgency_enc}|${caseDoc.jurisdiction_enc}|${caseDoc.opposingParty_enc}|${caseDoc.claimValue_enc || ''}`;
+    const hmacPayload = [
+      caseDoc.clientId,
+      caseDoc.title_enc,
+      caseDoc.description_enc,
+      caseDoc.category_enc,
+      caseDoc.urgency_enc,
+      caseDoc.jurisdiction_enc,
+      caseDoc.opposingParty_enc,
+      caseDoc.claimValue_enc || '',
+      caseDoc.hearingDates_enc || '',
+      caseDoc.jurors_enc || '',
+      caseDoc.da_enc || '',
+      caseDoc.judge_enc || '',
+      caseDoc.officers_enc || '',
+      caseDoc.witnesses_enc || '',
+      caseDoc.exhibits_enc || '',
+      caseDoc.caseUpdates_enc || ''
+    ].join('|');
     const isIntact = verifyHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload, caseDoc.hmac);
     
     if (!isIntact) {
@@ -74,7 +91,12 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
     }
 
     // Apply updates explicitly to ensure hmac reconstruction uses the new values
-    const updatableFields = ['title_enc', 'description_enc', 'opposingParty_enc', 'claimValue_enc', 'category_enc', 'urgency_enc', 'jurisdiction_enc', 'status', 'lawyerIds', 'accessKeys'];
+    const updatableFields = [
+      'title_enc', 'description_enc', 'opposingParty_enc', 'claimValue_enc', 'category_enc',
+      'urgency_enc', 'jurisdiction_enc', 'status', 'lawyerIds', 'accessKeys',
+      'hearingDates_enc', 'jurors_enc', 'da_enc', 'judge_enc', 'officers_enc',
+      'witnesses_enc', 'exhibits_enc', 'caseUpdates_enc'
+    ];
     for (const field of updatableFields) {
       if (body[field] !== undefined) {
         (caseDoc as any)[field] = body[field];
@@ -84,7 +106,24 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
     caseDoc.timeline.push({ action: 'Case Updated', actorId: userId } as any);
 
     // Recompute HMAC after updates
-    const hmacPayload = `${caseDoc.clientId}|${caseDoc.title_enc}|${caseDoc.description_enc}|${caseDoc.category_enc}|${caseDoc.urgency_enc}|${caseDoc.jurisdiction_enc}|${caseDoc.opposingParty_enc}|${caseDoc.claimValue_enc || ''}`;
+    const hmacPayload = [
+      caseDoc.clientId,
+      caseDoc.title_enc,
+      caseDoc.description_enc,
+      caseDoc.category_enc,
+      caseDoc.urgency_enc,
+      caseDoc.jurisdiction_enc,
+      caseDoc.opposingParty_enc,
+      caseDoc.claimValue_enc || '',
+      caseDoc.hearingDates_enc || '',
+      caseDoc.jurors_enc || '',
+      caseDoc.da_enc || '',
+      caseDoc.judge_enc || '',
+      caseDoc.officers_enc || '',
+      caseDoc.witnesses_enc || '',
+      caseDoc.exhibits_enc || '',
+      caseDoc.caseUpdates_enc || ''
+    ].join('|');
     caseDoc.hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
 
     const updatedCase = await caseDoc.save();
