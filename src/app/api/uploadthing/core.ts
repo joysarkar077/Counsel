@@ -11,8 +11,8 @@ export const ourFileRouter = {
     })
     .onUploadComplete(async ({ metadata, file }) => {
       console.log("Upload complete for userId:", metadata.userId);
-      console.log("file url", file.ufsUrl);
-      return { uploadedBy: metadata.userId, url: file.ufsUrl };
+      console.log("file url", file.url);
+      return { uploadedBy: metadata.userId, url: file.url };
     }),
   exhibitFile: f({ image: { maxFileSize: "32MB" }, pdf: { maxFileSize: "32MB" }, blob: { maxFileSize: "32MB" } })
     .middleware(async ({ req }) => {
@@ -21,7 +21,7 @@ export const ourFileRouter = {
       return { userId };
     })
     .onUploadComplete(async ({ metadata, file }) => {
-      return { uploadedBy: metadata.userId, url: file.ufsUrl };
+      return { uploadedBy: metadata.userId, url: file.url };
     }),
 } satisfies FileRouter;
 

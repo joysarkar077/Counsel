@@ -1,88 +1,44 @@
 /**
- * Utilities for encrypting/decrypting text using AES-256-GCM.
+ * Text encryption/decryption using ECIES over secp256k1.
+ *
+ * This module replaces the previous AES-256-GCM implementation.
+ * It is a thin, adapter layer over ecc.ts that provides the same interface
+ * shape that existing components expect, while the actual crypto lives in ecc.ts.
+ *
  * Compatible with both Browser (Client Components) and Node.js (Server Components).
+ * The underlying ecc.ts uses Node's `crypto` module; in a pure-browser environment
+ * the caller must ensure a Node.js-compatible crypto is available (e.g., via a polyfill
+ * or by keeping all ECIES calls in Server Components / API routes).
  */
 
-// Use global crypto object which is available in Browser (window.crypto) and Node (globalThis.crypto)
-const getCrypto = () => {
-  if (typeof window !== 'undefined' && window.crypto) return window.crypto;
-  if (typeof globalThis !== 'undefined' && globalThis.crypto) return globalThis.crypto;
-  // Fallback for older Node versions if necessary
-  return require('crypto').webcrypto;
-};
+export type {
+  ECIESCiphertext,
+  ECCKeyPair,
+  DecryptResult,
+} from './ecc';
 
-export async function generateAESKey(): Promise<CryptoKey> {
-  const crypto = getCrypto();
-  return crypto.subtle.generateKey(
-    {
-      name: 'AES-GCM',
-      length: 256,
-    },
-    true, // extractable
-    ['encrypt', 'decrypt']
-  );
-}
+export {
+  encrypt as encryptECIES,
+  decrypt as decryptECIES,
+  decryptOrFallback,
+  generateKeyPair,
+} from './ecc';
 
-export async function exportAESKey(key: CryptoKey): Promise<string> {
-  const crypto = getCrypto();
-  const exported = await crypto.subtle.exportKey('raw', key);
-  return Buffer.from(exported).toString('hex');
-}
+/**
+ * Encrypts a UTF-8 string with ECIES.
+ * Alias of `encrypt` from ecc.ts kept for call-site readability.
+ *
+ * @param text - Plaintext UTF-8 string
+ * @param recipientPublicKey - ECC public key in 'x,y' hex format
+ * @returns ECIESCiphertext bundle { ephemeralPublicKey, ciphertext, mac }
+ */
+export { encrypt as encryptText } from './ecc';
 
-export async function importAESKey(hexStr: string): Promise<CryptoKey> {
-  const crypto = getCrypto();
-  const keyBytes = Buffer.from(hexStr, 'hex');
-  return crypto.subtle.importKey(
-    'raw',
-    keyBytes,
-    { name: 'AES-GCM' },
-    true,
-    ['encrypt', 'decrypt']
-  );
-}
-
-export interface EncryptedTextResult {
-  ciphertextHex: string;
-  ivHex: string;
-}
-
-export async function encryptText(text: string, key: CryptoKey): Promise<EncryptedTextResult> {
-  const crypto = getCrypto();
-  const encoder = new TextEncoder();
-  const encodedText = encoder.encode(text);
-  
-  // 12 bytes is the recommended IV size for AES-GCM
-  const iv = crypto.getRandomValues(new Uint8Array(12));
-  
-  const encryptedBuffer = await crypto.subtle.encrypt(
-    {
-      name: 'AES-GCM',
-      iv: iv,
-    },
-    key,
-    encodedText
-  );
-
-  const ivHex = Buffer.from(iv).toString('hex');
-  const ciphertextHex = Buffer.from(encryptedBuffer).toString('hex');
-
-  return { ciphertextHex, ivHex };
-}
-
-export async function decryptText(ciphertextHex: string, ivHex: string, key: CryptoKey): Promise<string> {
-  const crypto = getCrypto();
-  const iv = Buffer.from(ivHex, 'hex');
-  const encryptedBuffer = Buffer.from(ciphertextHex, 'hex');
-  
-  const decryptedBuffer = await crypto.subtle.decrypt(
-    {
-      name: 'AES-GCM',
-      iv: new Uint8Array(iv),
-    },
-    key,
-    encryptedBuffer
-  );
-
-  const decoder = new TextDecoder();
-  return decoder.decode(decryptedBuffer);
-}
+/**
+ * Decrypts an ECIES bundle to a UTF-8 string.
+ * Returns a typed Result — callers MUST check result.ok before using result.plaintext.
+ *
+ * @param bundle - ECIESCiphertext bundle from encryptText()
+ * @param privateKey - ECC private key scalar as hex string
+ */
+export { decrypt as decryptText } from './ecc';

@@ -29,14 +29,20 @@ const UserSchema: Schema = new Schema({
     type: String,
     required: true,
   },
+  /** ECC secp256k1 public key 'x,y' hex — used for ECIES data encryption */
   publicKey: {
     type: String,
     required: true,
   },
+  /** ECC secp256k1 private key scalar hex — used for ECIES decryption */
   encryptedPrivateKey: {
     type: String,
     required: true,
   },
+  /** RSA-2048 public key JSON { e, n } hex — used for RSA digital signatures */
+  rsaPublicKey: { type: String },
+  /** RSA-2048 private key scalar d hex — used for RSA signing */
+  rsaPrivateKey: { type: String },
   role: {
     type: String,
     enum: ['client', 'lawyer', 'admin', 'super_admin'],

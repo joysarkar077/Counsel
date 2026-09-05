@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for kdf.ts
  * Run with: npx tsx --test src/lib/crypto/__tests__/kdf.test.ts
  */
@@ -21,7 +21,7 @@ describe('PBKDF2-style KDF', () => {
     assert.equal(result.iterations, 10_000);
   });
 
-  test('same password + same salt + same iterations → same hash (deterministic)', () => {
+  test('same password + same salt + same iterations â†’ same hash (deterministic)', () => {
     const result1 = hashPassword('mypassword');
     const result2Verified = verifyPassword(
       'mypassword',
@@ -32,7 +32,7 @@ describe('PBKDF2-style KDF', () => {
     assert.equal(result2Verified, true);
   });
 
-  test('different salts → different hashes for the same password', () => {
+  test('different salts â†’ different hashes for the same password', () => {
     const result1 = hashPassword('samepassword');
     const result2 = hashPassword('samepassword');
 
@@ -64,3 +64,5 @@ describe('PBKDF2-style KDF', () => {
     assert.equal(verifyPassword('hunter2', hash, tamperedSalt, iterations), false);
   });
 });
+
+

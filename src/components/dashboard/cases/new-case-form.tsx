@@ -7,8 +7,7 @@ import { FormHeader } from './new-case-form/form-header';
 import { MetadataFields } from './new-case-form/metadata-fields';
 import { DetailFields } from './new-case-form/detail-fields';
 import { FormActions } from './new-case-form/form-actions';
-import { generateAESKey, exportAESKey, encryptText } from '@/lib/crypto/textCrypto';
-import { encrypt } from '@/lib/crypto/rsa';
+import { generateKeyPair, encrypt, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
 export interface NewCaseFormProps {
   /** Called after a successful submission with the new case id. */
@@ -53,7 +52,7 @@ export function NewCaseForm({ onSuccess }: NewCaseFormProps) {
     setErrorMessage('');
 
     try {
-      // 1. Fetch Admin keys and Creator key
+      // 1. Fetch the ECC public keys for authorized recipients (creator + admins)
       const [adminKeysRes, myKeyRes] = await Promise.all([
         fetch('/api/admin/public-keys'),
         fetch('/api/user/me/public-key')
@@ -66,53 +65,51 @@ export function NewCaseForm({ onSuccess }: NewCaseFormProps) {
         throw new Error('Failed to fetch encryption keys from the server.');
       }
 
-      // 2. Generate AES-256 Case Key
-      const aesKey = await generateAESKey();
-      const aesKeyHex = await exportAESKey(aesKey);
+      // 2. Generate a per-case ECC keypair.
+      //    All case fields are encrypted to the case public key.
+      //    The case private scalar is distributed via accessKeys.
+      const caseKeyPair = generateKeyPair();
 
-      // 3. Wrap AES key with all authorized RSA public keys
-      const accessKeys: { userId: string, encryptedCaseKey: string }[] = [];
+      // 3. Distribute the case private scalar to all authorized users.
+      //    Each user receives an ECIES bundle encrypting the scalar to their ECC public key.
+      const accessKeys: { userId: string; encryptedCaseKey: string }[] = [];
       const addedUsers = new Set<string>();
 
-      // Wrap for creator
-      const myPubKey = JSON.parse(myKeyJson.data.publicKey);
+      // Wrap for the creator (the submitting user)
+      const myECCPublicKey: string = myKeyJson.data.publicKey; // 'x,y' hex ECC key
       accessKeys.push({
         userId: myKeyJson.data.userId,
-        encryptedCaseKey: encrypt(aesKeyHex, myPubKey)
+        encryptedCaseKey: JSON.stringify(encrypt(caseKeyPair.privateKey, myECCPublicKey)),
       });
       addedUsers.add(myKeyJson.data.userId);
 
-      // Wrap for admins
+      // Wrap for all admins
       for (const admin of adminKeysJson.data) {
         if (!addedUsers.has(admin.userId)) {
-          const adminPubKey = JSON.parse(admin.publicKey);
+          const adminECCPublicKey: string = admin.publicKey;
           accessKeys.push({
             userId: admin.userId,
-            encryptedCaseKey: encrypt(aesKeyHex, adminPubKey)
+            encryptedCaseKey: JSON.stringify(encrypt(caseKeyPair.privateKey, adminECCPublicKey)),
           });
           addedUsers.add(admin.userId);
         }
       }
 
-      // 4. Encrypt form fields with AES
-      const titleRes = await encryptText(formData.title, aesKey);
-      const descRes = await encryptText(formData.description, aesKey);
-      const oppRes = await encryptText(formData.opposingParty, aesKey);
-      const claimRes = formData.claimValue ? await encryptText(formData.claimValue, aesKey) : null;
-      const catRes = await encryptText(formData.category, aesKey);
-      const urgRes = await encryptText(formData.urgency, aesKey);
-      const jurRes = await encryptText(formData.jurisdiction, aesKey);
+      // 4. Encrypt all case fields with ECIES to the case public key.
+      //    Each call to encrypt() generates a fresh ephemeral keypair → distinct bundles.
+      const encField = (value: string): string =>
+        JSON.stringify(encrypt(value, caseKeyPair.publicKey));
 
-      // We store both the ciphertext and IV as a JSON string so it can be parsed back
       const payload = {
-        title_enc: JSON.stringify(titleRes),
-        description_enc: JSON.stringify(descRes),
-        opposingParty_enc: JSON.stringify(oppRes),
-        claimValue_enc: claimRes ? JSON.stringify(claimRes) : '',
-        category_enc: JSON.stringify(catRes),
-        urgency_enc: JSON.stringify(urgRes),
-        jurisdiction_enc: JSON.stringify(jurRes),
-        accessKeys
+        casePublicKey: caseKeyPair.publicKey,
+        title_enc: encField(formData.title),
+        description_enc: encField(formData.description),
+        opposingParty_enc: encField(formData.opposingParty),
+        claimValue_enc: formData.claimValue ? encField(formData.claimValue) : '',
+        category_enc: encField(formData.category),
+        urgency_enc: encField(formData.urgency),
+        jurisdiction_enc: encField(formData.jurisdiction),
+        accessKeys,
       };
 
       // 5. Submit to backend

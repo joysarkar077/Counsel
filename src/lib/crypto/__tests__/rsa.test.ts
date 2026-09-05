@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for rsa.ts
  * Run with: npx tsx --test src/lib/crypto/__tests__/rsa.test.ts
  */
@@ -52,7 +52,7 @@ describe('encrypt / decrypt', () => {
     const msg = 'secret content';
     const wrongKeyPair = generateKeyPair(TEST_KEY_BITS);
     const ciphertext = encrypt(msg, keyPair.publicKey);
-    // Decrypting with the wrong private key should not throw — but output won't match
+    // Decrypting with the wrong private key should not throw â€” but output won't match
     let recovered: string;
     try {
       recovered = decrypt(ciphertext, wrongKeyPair.privateKey);
@@ -92,3 +92,5 @@ describe('sign / verify', () => {
     assert.equal(await verify(msg, sig, keyPair.publicKey), false);
   });
 });
+
+

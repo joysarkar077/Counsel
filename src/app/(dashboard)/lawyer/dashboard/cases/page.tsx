@@ -4,8 +4,7 @@ import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
-import { decrypt } from '@/lib/crypto/rsa';
-import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import { CasesDirectory } from '@/components/dashboard/lawyer/CasesDirectory';
 import type { ILawyerCaseItem } from '@/types/lawyer-dashboard';
 
@@ -24,54 +23,45 @@ export default async function LawyerCasesPage(): Promise<React.ReactNode> {
 
   // Fetch the lawyer's user record to retrieve their RSA private key for decryption
   const user = await User.findById(userId).lean();
-  let privateKey: any = null;
-  if (user && user.publicKey && user.encryptedPrivateKey) {
-    try {
-      const publicKey = JSON.parse(user.publicKey);
-      privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
-    } catch (err) {
-      console.error('Failed to parse lawyer RSA keys:', err);
-    }
-  }
+  const eccPrivateKeyHex = user?.encryptedPrivateKey;
 
-  const tryDecrypt = async (
+  const tryDecrypt = (
     encryptedJsonStr: string | undefined, 
     accessKeys: any[], 
     fallback: string
-  ) => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  ): string => {
+    if (!encryptedJsonStr || !eccPrivateKeyHex || !accessKeys) return fallback;
     try {
-      // Find the user's encrypted AES key
       const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      if (!myAccess || !myAccess.encryptedCaseKey) return fallback;
 
-      // Decrypt the AES key with RSA private key
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
-      const aesKey = await importAESKey(aesKeyHex);
+      const accessKeyBundle: ECIESCiphertext = JSON.parse(myAccess.encryptedCaseKey);
+      const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
+      if (!caseKeyResult.ok) return fallback;
 
-      // Parse the AES ciphertext payload
-      const payload = JSON.parse(encryptedJsonStr);
-      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+      const casePrivateKeyHex = caseKeyResult.plaintext;
 
-      // Decrypt the actual data
-      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+      const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
+      const result = decryptECIES(fieldBundle, casePrivateKeyHex);
+
+      return result.ok ? result.plaintext : fallback;
     } catch (err) {
       return fallback;
     }
   };
 
-  const mappedCases: ILawyerCaseItem[] = await Promise.all(caseDocs.map(async (doc: any) => ({
+  const mappedCases: ILawyerCaseItem[] = caseDocs.map((doc: any) => ({
     id: doc._id.toString(),
     caseId: doc.caseId || `CASE-${doc._id.toString().slice(-4)}`,
     clientId: doc.clientId ? doc.clientId.toString() : 'Unknown',
-    title: await tryDecrypt(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
-    category: await tryDecrypt(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
+    title: tryDecrypt(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+    category: tryDecrypt(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
     status: doc.status || 'PENDING_REVIEW',
-    urgency: await tryDecrypt(doc.urgency_enc, doc.accessKeys, 'Standard'),
-    jurisdiction: await tryDecrypt(doc.jurisdiction_enc, doc.accessKeys, 'District Court'),
+    urgency: tryDecrypt(doc.urgency_enc, doc.accessKeys, 'Standard'),
+    jurisdiction: tryDecrypt(doc.jurisdiction_enc, doc.accessKeys, 'District Court'),
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
-  })));
+  }));
 
   return (
     <div className="animate-fade-up space-y-8 max-w-7xl mx-auto pb-10">

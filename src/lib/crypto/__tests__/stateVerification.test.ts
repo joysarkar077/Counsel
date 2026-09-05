@@ -1,4 +1,4 @@
-import { strict as assert } from 'assert';
+﻿import { strict as assert } from 'assert';
 import { test, describe } from 'node:test';
 import { generateKeyPair } from '../rsa';
 import { signStateTransition, verifyStateTransition, buildStateMessage } from '../stateVerification';
@@ -50,3 +50,5 @@ describe('State Verification', () => {
     assert.equal(isValid, false);
   });
 });
+
+

@@ -2,14 +2,17 @@
 
 import { SecureFieldEditor } from './SecureFieldEditor';
 import EncryptedExhibitUpload from './EncryptedExhibitUpload';
+import { EncryptedFileViewer } from './EncryptedFileViewer';
 
 interface ExhibitsTabProps {
   caseId: string;
-  aesKeyHex: string;
+  casePrivateKeyHex: string;
+  casePublicKey: string;
   initialData: string;
+  readOnly?: boolean;
 }
 
-export function ExhibitsTab({ caseId, aesKeyHex, initialData }: ExhibitsTabProps) {
+export function ExhibitsTab({ caseId, casePrivateKeyHex, casePublicKey, initialData, readOnly = false }: ExhibitsTabProps) {
   let parsed = [];
   try {
     parsed = JSON.parse(initialData);
@@ -23,9 +26,11 @@ export function ExhibitsTab({ caseId, aesKeyHex, initialData }: ExhibitsTabProps
       <SecureFieldEditor
         title="Case Exhibits & Evidence Log"
         caseId={caseId}
-        aesKeyHex={aesKeyHex}
+        casePrivateKeyHex={casePrivateKeyHex}
+        casePublicKey={casePublicKey}
         field="exhibits_enc"
         initialData={parsed}
+        readOnly={readOnly}
         renderDisplay={(data: any[]) => (
           data.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-12 text-center border border-dashed border-slate-200 rounded-xl bg-slate-50">
@@ -51,10 +56,11 @@ export function ExhibitsTab({ caseId, aesKeyHex, initialData }: ExhibitsTabProps
                       <td className="px-4 py-3 text-slate-900 whitespace-normal min-w-[200px]">{ex.description}</td>
                       <td className="px-4 py-3">
                         {ex.fileUrl ? (
-                          <div className="flex flex-col gap-1">
-                            <span className="text-[10px] text-slate-500 truncate max-w-[120px]" title={ex.fileName}>{ex.fileName || 'Encrypted File'}</span>
-                            <span className="text-[10px] font-semibold text-emerald-600">Attached (E2EE)</span>
-                          </div>
+                          <EncryptedFileViewer 
+                            fileUrl={ex.fileUrl} 
+                            fileKey={ex.fileKey} 
+                            fileName={ex.fileName} 
+                          />
                         ) : (
                           <span className="text-slate-400 text-xs italic">No file</span>
                         )}
@@ -114,10 +120,11 @@ export function ExhibitsTab({ caseId, aesKeyHex, initialData }: ExhibitsTabProps
                 <div>
                   {ex.fileUrl ? (
                     <div className="flex items-center justify-between p-2 bg-slate-50 border border-slate-200 rounded">
-                      <div className="flex flex-col">
-                        <span className="text-xs font-medium text-slate-700 truncate max-w-[200px]">{ex.fileName || 'Attached File'}</span>
-                        <span className="text-[10px] text-emerald-600 font-semibold">File uploaded & encrypted</span>
-                      </div>
+                      <EncryptedFileViewer 
+                        fileUrl={ex.fileUrl} 
+                        fileKey={ex.fileKey} 
+                        fileName={ex.fileName} 
+                      />
                       <button 
                         onClick={() => { const c = [...data]; c[i].fileUrl = ''; c[i].fileKey = ''; c[i].fileName = ''; setData(c); }}
                         className="text-[10px] text-red-500 hover:underline"

@@ -16,13 +16,24 @@ export interface ITimelineEvent {
 
 export interface IAccessKey {
   userId: string;
-  encryptedCaseKey: string; // The AES-256 case key encrypted with this user's RSA public key
+  /**
+   * JSON-serialised ECIESCiphertext bundle containing the case ECC private scalar,
+   * encrypted to this user's ECC public key. Decrypt with the user's ECIES private key
+   * to obtain the case private scalar, which can then decrypt all *_enc fields.
+   */
+  encryptedCaseKey: string;
 }
 
 export interface ICase extends Document {
   caseId: string;
   /** MongoDB ObjectId of the client who submitted the case */
   clientId: string;
+  /**
+   * Per-case ECC secp256k1 public key in 'x,y' hex format.
+   * All *_enc fields are ECIES-encrypted to this public key.
+   * The corresponding private scalar is distributed via accessKeys[].
+   */
+  casePublicKey: string;
   /** ECIES-encrypted case title */
   title_enc: string;
   /** ECIES-encrypted case description */

@@ -4,8 +4,7 @@ import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { Case } from '@/models/Case';
 import { Notification } from '@/models/Notification';
-import { decrypt } from '@/lib/crypto/rsa';
-import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import { LawyerMetrics } from '@/components/dashboard/lawyer/LawyerMetrics';
 import { AssignedCasesList } from '@/components/dashboard/lawyer/AssignedCasesList';
 import { RequestNewCaseCard } from '@/components/dashboard/lawyer/RequestNewCaseCard';
@@ -57,56 +56,49 @@ export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
     Notification.find({ userId }).sort({ createdAt: -1 }).lean()
   ]);
 
-  let privateKey: any = null;
-  if (user && user.publicKey && user.encryptedPrivateKey) {
-    try {
-      const publicKey = JSON.parse(user.publicKey);
-      privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
-    } catch (err) {
-      console.error('Failed to parse lawyer RSA keys:', err);
-    }
-  }
+  const eccPrivateKeyHex = user?.encryptedPrivateKey;
 
-  const tryDecrypt = async (
+  const tryDecrypt = (
     encryptedJsonStr: string | undefined, 
     accessKeys: any[], 
     fallback: string
-  ) => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  ): string => {
+    if (!encryptedJsonStr || !eccPrivateKeyHex || !accessKeys) return fallback;
     try {
-      // Find the user's encrypted AES key
       const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      if (!myAccess || !myAccess.encryptedCaseKey) return fallback;
 
-      // Decrypt the AES key with RSA private key
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
-      const aesKey = await importAESKey(aesKeyHex);
+      // 1. Decrypt the case scalar using the user's ECC private key
+      const accessKeyBundle: ECIESCiphertext = JSON.parse(myAccess.encryptedCaseKey);
+      const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
+      if (!caseKeyResult.ok) return fallback;
+      
+      const casePrivateKeyHex = caseKeyResult.plaintext;
 
-      // Parse the AES ciphertext payload
-      const payload = JSON.parse(encryptedJsonStr);
-      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
-
-      // Decrypt the actual data
-      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+      // 2. Decrypt the field using the case scalar
+      const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
+      const result = decryptECIES(fieldBundle, casePrivateKeyHex);
+      
+      return result.ok ? result.plaintext : fallback;
     } catch {
       return fallback;
     }
   };
 
-  const mapCaseDoc = async (doc: any): Promise<ILawyerCaseItem> => ({
+  const mapCaseDoc = (doc: any): ILawyerCaseItem => ({
     id: doc._id.toString(),
     caseId: doc.caseId || `CASE-${doc._id.toString().slice(-4)}`,
     clientId: doc.clientId ? doc.clientId.toString() : 'Unknown',
-    title: await tryDecrypt(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
-    category: await tryDecrypt(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
+    title: tryDecrypt(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+    category: tryDecrypt(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
     status: doc.status || 'PENDING_REVIEW',
-    urgency: await tryDecrypt(doc.urgency_enc, doc.accessKeys, 'Standard'),
-    jurisdiction: await tryDecrypt(doc.jurisdiction_enc, doc.accessKeys, 'District Court'),
+    urgency: tryDecrypt(doc.urgency_enc, doc.accessKeys, 'Standard'),
+    jurisdiction: tryDecrypt(doc.jurisdiction_enc, doc.accessKeys, 'District Court'),
     updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
     createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
   });
 
-  const assignedCases = await Promise.all(assignedCaseDocs.map(mapCaseDoc));
+  const assignedCases = assignedCaseDocs.map(mapCaseDoc);
   const activeCasesCount = assignedCases.filter((c) => c.status === 'ACTIVE').length;
 
   const notifications: ILawyerNotification[] = notificationDocs.map((doc: any) => ({

@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for bignum.ts
  * Run with: node --test src/lib/crypto/__tests__/bignum.test.ts
  * (Requires Node 18+ and ts-node or tsx)
@@ -93,3 +93,5 @@ describe('generateLargePrime', () => {
     assert.ok(bitLen <= 128, `Expected <= 128 bits, got ${bitLen}`);
   });
 });
+
+

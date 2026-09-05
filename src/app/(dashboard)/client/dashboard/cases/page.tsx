@@ -3,8 +3,7 @@ import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { Case } from '@/models/Case';
-import { decrypt } from '@/lib/crypto/rsa';
-import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import { CasesList } from '@/components/dashboard/cases/cases-list';
 
 export default async function ClientCasesPage() {
@@ -26,47 +25,40 @@ export default async function ClientCasesPage() {
     Case.find({ clientId: userId }).sort({ createdAt: -1 }).lean(),
   ]);
 
-  let privateKey: any = null;
-  if (userDoc && userDoc.publicKey && userDoc.encryptedPrivateKey) {
-    try {
-      const pub = JSON.parse(userDoc.publicKey);
-      privateKey = { d: userDoc.encryptedPrivateKey, n: pub.n };
-    } catch (err) {
-      console.error('Failed to parse RSA key on cases page:', err);
-    }
-  }
+  const eccPrivateKeyHex = userDoc?.encryptedPrivateKey;
 
-  const tryDecryptCaseField = async (
+  const tryDecryptCaseField = (
     encryptedJsonStr: string | undefined,
     accessKeys: any[],
     fallback: string
-  ): Promise<string> => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  ): string => {
+    if (!encryptedJsonStr || !eccPrivateKeyHex || !accessKeys) return fallback;
     try {
       const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      if (!myAccess || !myAccess.encryptedCaseKey) return fallback;
 
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
-      const aesKey = await importAESKey(aesKeyHex);
+      const accessKeyBundle: ECIESCiphertext = JSON.parse(myAccess.encryptedCaseKey);
+      const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
+      if (!caseKeyResult.ok) return fallback;
 
-      const payload = JSON.parse(encryptedJsonStr);
-      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+      const casePrivateKeyHex = caseKeyResult.plaintext;
 
-      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+      const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
+      const result = decryptECIES(fieldBundle, casePrivateKeyHex);
+
+      return result.ok ? result.plaintext : fallback;
     } catch {
       return fallback;
     }
   };
 
-  const cases = await Promise.all(
-    caseDocs.map(async (doc: any) => ({
-      id: doc._id.toString(),
-      title: await tryDecryptCaseField(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
-      status: (doc.status || 'PENDING_REVIEW') as any,
-      createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
-      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
-    }))
-  );
+  const cases = caseDocs.map((doc: any) => ({
+    id: doc._id.toString(),
+    title: tryDecryptCaseField(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+    status: (doc.status || 'PENDING_REVIEW') as any,
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toISOString() : new Date().toISOString(),
+    updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toISOString() : new Date().toISOString(),
+  }));
 
   return (
     <div className="animate-fade-up space-y-6 max-w-6xl mx-auto pb-10">

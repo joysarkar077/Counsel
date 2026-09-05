@@ -1,10 +1,16 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { generateAESKey, exportAESKey, encryptFile } from '@/lib/crypto/fileCrypto';
+import { encryptFileECIES, generateFileKeyPair } from '@/lib/crypto/fileCrypto';
 import { useUploadThing } from '@/utils/uploadthing';
 
 interface EncryptedExhibitUploadProps {
+  /**
+   * Called when upload completes.
+   * @param url - UploadThing CDN URL for the encrypted file
+   * @param keyPayload - JSON string: { filePrivateKey, ephemeralPublicKey } needed for decryption
+   * @param fileName - original file name
+   */
   onUploadSuccess: (url: string, keyPayload: string, fileName: string) => void;
 }
 
@@ -13,11 +19,11 @@ export default function EncryptedExhibitUpload({ onUploadSuccess }: EncryptedExh
   const [progress, setProgress] = useState(0);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // We temporarily store the key payload in a ref so we can use it in onClientUploadComplete
+  // Persist the key payload across the async UploadThing callback
   const currentKeyPayload = useRef<string>('');
   const currentFileName = useRef<string>('');
 
-  const { startUpload, isUploading } = useUploadThing("exhibitFile", {
+  const { startUpload, isUploading } = useUploadThing('exhibitFile', {
     onUploadProgress: (p) => {
       setProgress(50 + Math.floor(p / 2));
     },
@@ -30,8 +36,8 @@ export default function EncryptedExhibitUpload({ onUploadSuccess }: EncryptedExh
       if (fileInputRef.current) fileInputRef.current.value = '';
     },
     onUploadError: (error) => {
-      console.error("Upload failed:", error);
-      alert("Failed to upload exhibit.");
+      console.error('Upload failed:', error);
+      alert('Failed to upload exhibit.');
       setIsEncrypting(false);
       setProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -47,26 +53,40 @@ export default function EncryptedExhibitUpload({ onUploadSuccess }: EncryptedExh
     currentFileName.current = file.name;
 
     try {
-      // 1. Generate AES Key & Encrypt
-      const aesKey = await generateAESKey();
-      const aesKeyHex = await exportAESKey(aesKey);
-      const { encryptedBlob, ivHex } = await encryptFile(file, aesKey);
+      // 1. Generate a fresh per-file ECC keypair.
+      //    The file private key must be stored securely alongside the file URL
+      //    so that authorized users can decrypt it.
+      const fileKeyPair = generateFileKeyPair();
+
+      // 2. Read file bytes and ECIES-encrypt to the file public key
+      const arrayBuffer = await file.arrayBuffer();
+      const fileBytes = new Uint8Array(arrayBuffer);
+      const bundle = encryptFileECIES(fileBytes, fileKeyPair.publicKey);
 
       setProgress(30);
 
-      // 2. Prepare for Uploadthing
-      // Preserve the original file type so UploadThing accepts it according to its router config
+      // 3. Encode bundle as a binary Blob for upload
+      //    The bundle JSON is the ciphertext in hex — encode to bytes for upload
+      const bundleJson = JSON.stringify(bundle);
+      const encodedBlob = new Blob([bundleJson], { type: 'application/octet-stream' });
+
       const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_') || 'encrypted_exhibit.bin';
-      const encryptedFile = new File([encryptedBlob], safeName, { type: file.type || 'application/pdf' });
-      currentKeyPayload.current = `${aesKeyHex}:${ivHex}`;
+      const encryptedFile = new File([encodedBlob], safeName, { type: file.type || 'application/pdf' });
+
+      // Store the key payload — both keys needed for decryption
+      // filePrivateKey: the per-file ECC private scalar
+      // The encrypted bundle (ephemeralPublicKey + ciphertext + mac) is in the uploaded file itself
+      currentKeyPayload.current = JSON.stringify({
+        filePrivateKey: fileKeyPair.privateKey,
+      });
 
       setProgress(50);
 
-      // 3. Upload via hook
+      // 4. Upload the encrypted file blob via UploadThing
       await startUpload([encryptedFile]);
     } catch (error) {
-      console.error("Encryption failed:", error);
-      alert("Failed to encrypt exhibit.");
+      console.error('Encryption failed:', error);
+      alert('Failed to encrypt exhibit.');
       setIsEncrypting(false);
       setProgress(0);
       if (fileInputRef.current) fileInputRef.current.value = '';
@@ -83,7 +103,7 @@ export default function EncryptedExhibitUpload({ onUploadSuccess }: EncryptedExh
             <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
             <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
           </svg>
-          <div className="text-[10px] font-semibold text-slate-700">Encrypting & Uploading...</div>
+          <div className="text-[10px] font-semibold text-slate-700">Encrypting & Uploading (ECIES)...</div>
           <div className="w-full h-1 bg-slate-200 rounded-full overflow-hidden">
             <div className="h-full bg-slate-900 transition-all duration-300" style={{ width: `${progress}%` }}></div>
           </div>

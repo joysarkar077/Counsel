@@ -8,8 +8,14 @@ export interface IUser extends Document {
   contact_enc: string;
   passwordHash: string;
   salt: string;
+  /** ECC secp256k1 public key in 'x,y' hex format — used for ECIES data encryption */
   publicKey: string;
+  /** ECC secp256k1 private key scalar as hex — used for ECIES decryption */
   encryptedPrivateKey: string;
+  /** RSA-2048 public key as JSON { e, n } hex — used for RSA digital signatures */
+  rsaPublicKey?: string;
+  /** RSA-2048 private key scalar d as hex — used for RSA signing */
+  rsaPrivateKey?: string;
   role: 'client' | 'lawyer' | 'admin' | 'super_admin';
   isActive: boolean;
   otpHash?: string;
