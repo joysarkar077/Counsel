@@ -5,6 +5,7 @@ import { CaseTabs } from '@/components/dashboard/cases/case-detail/case-tabs';
 import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-tab';
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
 import { NotesTab } from '@/components/dashboard/cases/case-detail/notes-tab';
+import { ExhibitsTab } from '@/components/dashboard/cases/case-detail/exhibits-tab';
 import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-tab';
 import type { CaseStatus } from '@/types/case';
 import dbConnect from '@/lib/db/mongoose';
@@ -38,6 +39,8 @@ async function fetchCase(id: string, cookieHeader: string) {
     opposingParty_enc: string;
     claimValue_enc: string;
     hearingDates_enc?: string;
+    exhibits_enc?: string;
+    caseUpdates_enc?: string;
     accessKeys: any[];
     lawyerIds: string[];
     status: CaseStatus;
@@ -106,6 +109,8 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const opposingParty = await tryDecrypt(caseData.opposingParty_enc, undefined);
   const claimValue = await tryDecrypt(caseData.claimValue_enc, undefined);
   const hearingDates = await tryDecrypt(caseData.hearingDates_enc, '[]');
+  const exhibits = await tryDecrypt(caseData.exhibits_enc, '[]');
+  const caseUpdates = await tryDecrypt(caseData.caseUpdates_enc, '[]');
 
   let parsedHearings: any[] = [];
   try {
@@ -178,8 +183,8 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 </div>
               )
             }
-            notes={<div className="p-10 text-center text-slate-500 italic">Internal notes are restricted to legal counsel.</div>}
-            exhibits={<div className="p-10 text-center text-slate-500 italic">Exhibits are managed by your attorney.</div>}
+            notes={<NotesTab caseId={caseData._id} aesKeyHex={aesKeyHex} initialUpdates={caseUpdates || '[]'} readOnly={true} />}
+            exhibits={<ExhibitsTab caseId={caseData._id} aesKeyHex={aesKeyHex} initialData={exhibits || '[]'} readOnly={true} />}
             messages={<MessagesTab caseId={caseData._id} aesKeyHex={aesKeyHex} currentUserId={userId} />}
           />
       </div>
