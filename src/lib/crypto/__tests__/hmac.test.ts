@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for hmac.ts
  * Run with: npx tsx --test src/lib/crypto/__tests__/hmac.test.ts
  */
@@ -77,3 +77,5 @@ describe('HMAC-SHA256 (RFC 2104 / RFC 4231 Test Vectors)', () => {
     assert.equal(verifyHMAC('wrong-key', message, mac), false);
   });
 });
+
+

@@ -11,12 +11,15 @@ const TimelineEventSchema = new Schema<ITimelineEvent>({
 
 const AccessKeySchema = new Schema({
   userId: { type: String, required: true },
+  /** ECIES bundle of the case ECC private scalar, encrypted to this user's ECC public key */
   encryptedCaseKey: { type: String, required: true },
 }, { _id: false });
 
 const CaseSchema = new Schema<ICase>({
   caseId: { type: String, required: true, unique: true },
   clientId: { type: String, required: true },
+  /** ECC secp256k1 public key 'x,y' hex for this case — used to encrypt all *_enc fields */
+  casePublicKey: { type: String, required: true },
   title_enc: { type: String, required: true },
   description_enc: { type: String, required: true },
   opposingParty_enc: { type: String, required: true },

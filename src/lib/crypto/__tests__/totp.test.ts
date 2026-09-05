@@ -1,4 +1,4 @@
-/**
+﻿/**
  * Unit tests for totp.ts (HOTP / TOTP)
  * Run with: npx tsx --test src/lib/crypto/__tests__/totp.test.ts
  */
@@ -12,11 +12,11 @@ import { hotp, totp, verifyTotp } from '../totp';
  * standardizes on HMAC-SHA256 as the PRF, so the raw OTP values differ.
  * The vectors below were computed with our HMAC-SHA256 implementation
  * against the same canonical secret to verify that the dynamic-truncation
- * logic (§5.3) is wired correctly.
+ * logic (Â§5.3) is wired correctly.
  */
 const RFC_SECRET = Buffer.from('12345678901234567890', 'ascii');
 
-/** HOTP-SHA256 expected values for counters 0–9 */
+/** HOTP-SHA256 expected values for counters 0â€“9 */
 const HOTP_SHA256_VECTORS: readonly string[] = [
   '875740', // counter 0
   '247374', // counter 1
@@ -30,9 +30,9 @@ const HOTP_SHA256_VECTORS: readonly string[] = [
   '184989', // counter 9
 ];
 
-describe('HOTP (RFC 4226 §5.3 dynamic truncation, HMAC-SHA256)', () => {
+describe('HOTP (RFC 4226 Â§5.3 dynamic truncation, HMAC-SHA256)', () => {
   for (let counter = 0; counter < HOTP_SHA256_VECTORS.length; counter++) {
-    test(`counter ${counter} → ${HOTP_SHA256_VECTORS[counter]}`, () => {
+    test(`counter ${counter} â†’ ${HOTP_SHA256_VECTORS[counter]}`, () => {
       const result = hotp(RFC_SECRET, counter);
       assert.equal(result, HOTP_SHA256_VECTORS[counter]);
     });
@@ -77,7 +77,7 @@ describe('verifyTotp (drift-window tolerance)', () => {
     assert.equal(verifyTotp(RFC_SECRET, farCode, 30, 1), false);
   });
 
-  test('accepts code from counter ±1 when driftWindow = 1', () => {
+  test('accepts code from counter Â±1 when driftWindow = 1', () => {
     const currentCounter = Math.floor(Date.now() / 1000 / 30);
     const prevCode = hotp(RFC_SECRET, currentCounter - 1);
     const nextCode = hotp(RFC_SECRET, currentCounter + 1);
@@ -86,3 +86,5 @@ describe('verifyTotp (drift-window tolerance)', () => {
     assert.equal(verifyTotp(RFC_SECRET, nextCode, 30, 1), true);
   });
 });
+
+

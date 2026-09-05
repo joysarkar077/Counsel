@@ -22,13 +22,31 @@ export interface ECCKeyPair {
   publicKey: string;
 }
 
-/** ECIES ciphertext bundle. */
+/**
+ * ECIES ciphertext bundle.
+ * Stores the ephemeral public key, XOR-encrypted ciphertext, and a HMAC-SHA256
+ * integrity tag over the ciphertext bytes (keyed on the ECDH shared secret).
+ *
+ * SEC 1 §5.1 — ECIES with ANSI X9.63 KDF and HMAC-SHA256 integrity tag.
+ */
 export interface ECIESCiphertext {
   /** Ephemeral public key R = r·G, as 'x,y' hex */
   ephemeralPublicKey: string;
   /** XOR-encrypted ciphertext as hex */
   ciphertext: string;
+  /**
+   * HMAC-SHA256 integrity tag — computed as:
+   *   HMAC(sharedSecretX_bytes, ciphertextHex_utf8)
+   * where sharedSecretX_bytes is the 32-byte big-endian x-coordinate of S.
+   * Verifying this before decryption prevents padding oracle and chosen-ciphertext attacks.
+   */
+  mac: string;
 }
+
+/** Typed result for decrypt() — avoids leaking crypto error details to callers. */
+export type DecryptResult =
+  | { ok: true; plaintext: string }
+  | { ok: false; error: 'MAC_MISMATCH' | 'POINT_AT_INFINITY' | 'INVALID_INPUT' };
 
 // ---------------------------------------------------------------------------
 // Internal helpers
@@ -115,8 +133,10 @@ function decodePoint(encoded: string): Point {
 }
 
 /**
- * Derive a keystream from a shared point S using hash-based expansion
- * (ANSI X9.63 KDF pattern — hash S concatenated with a 4-byte counter).
+ * Derive a keystream from a shared point S using hash-based expansion.
+ * ANSI X9.63 KDF pattern — hash S concatenated with a 4-byte counter.
+ *
+ * Each 32-byte block: SHA-256(S_x_bytes || counter_4BE)
  */
 function deriveKeystream(sharedPoint: Point, length: number): Buffer {
   if (sharedPoint === 'infinity') throw new Error('ECC: shared point is infinity');
@@ -130,6 +150,28 @@ function deriveKeystream(sharedPoint: Point, length: number): Buffer {
     chunks.push(hash);
   }
   return Buffer.concat(chunks).subarray(0, length);
+}
+
+/**
+ * Derive the MAC key from a shared point.
+ * Uses a distinct counter (0) from the encryption keystream (counter ≥ 1)
+ * so the MAC key is always independent from the cipher keystream.
+ * ANSI X9.63 KDF §3.6.1 — counter 0 reserved for MAC derivation.
+ */
+function deriveMacKey(sharedPoint: Point): Buffer {
+  if (sharedPoint === 'infinity') throw new Error('ECC: shared point is infinity for MAC');
+  const sharedBytes = Buffer.from(sharedPoint.x.toString(16).padStart(64, '0'), 'hex');
+  const counterBuf = Buffer.alloc(4); // counter = 0 for MAC key
+  return crypto.createHash('sha256').update(sharedBytes).update(counterBuf).digest();
+}
+
+/**
+ * Compute HMAC-SHA256 for integrity tagging.
+ * Uses Node's built-in crypto.createHmac (not our scratch hmac.ts) to keep
+ * this module framework/import-agnostic (ecc.ts may run in both Node and Edge).
+ */
+function computeMac(macKey: Buffer, ciphertextBuf: Buffer): string {
+  return crypto.createHmac('sha256', macKey).update(ciphertextBuf).digest('hex');
 }
 
 // ---------------------------------------------------------------------------
@@ -155,9 +197,12 @@ export function generateKeyPair(): ECCKeyPair {
 }
 
 /**
- * ECIES encryption using secp256k1.
+ * ECIES encryption using secp256k1 with HMAC-SHA256 integrity tag.
  * SEC 1 §5.1 — generates an ephemeral keypair, derives shared secret via ECDH,
- * expands a keystream, and XORs with plaintext.
+ * expands a keystream via ANSI X9.63 KDF, XORs with plaintext, then computes a MAC.
+ *
+ * The MAC key is derived from the same shared secret using counter=0,
+ * while the cipher keystream uses counter≥1, ensuring independence.
  *
  * @param plaintext - UTF-8 string to encrypt
  * @param recipientPublicKey - hex 'x,y' public key of the recipient
@@ -175,6 +220,10 @@ export function encrypt(plaintext: string, recipientPublicKey: string): ECIESCip
 
   // Shared point S = r · Q_recipient
   const S = scalarMultiply(r, Q);
+  if (S === 'infinity') throw new Error('ECC: shared point is infinity during encrypt');
+
+  // Derive separate MAC key (counter=0) and cipher keystream (counter≥1)
+  const macKey = deriveMacKey(S);
   const keystream = deriveKeystream(S, plaintextBuf.length);
 
   const ciphertextBuf = Buffer.alloc(plaintextBuf.length);
@@ -182,33 +231,101 @@ export function encrypt(plaintext: string, recipientPublicKey: string): ECIESCip
     ciphertextBuf[i] = plaintextBuf[i] ^ keystream[i];
   }
 
+  // Integrity tag over the ciphertext bytes
+  const mac = computeMac(macKey, ciphertextBuf);
+
   return {
     ephemeralPublicKey: encodePoint(R),
     ciphertext: ciphertextBuf.toString('hex'),
+    mac,
   };
 }
 
 /**
  * ECIES decryption using secp256k1.
- * SEC 1 §5.1 — re-derives shared secret S = d · R, expands identical keystream,
- * and XORs with ciphertext to recover plaintext.
+ * SEC 1 §5.1 — re-derives shared secret S = d · R, re-derives MAC key,
+ * verifies the integrity tag in constant time, then decrypts.
+ *
+ * Returns a typed Result so callers can handle MAC_MISMATCH distinctly from
+ * unexpected errors. Never throws on expected crypto failures.
  *
  * @param bundle - ciphertext bundle from encrypt()
  * @param privateKey - hex private key scalar of the recipient
  */
-export function decrypt(bundle: ECIESCiphertext, privateKey: string): string {
-  const d = BigInt(`0x${privateKey}`);
-  const R = decodePoint(bundle.ephemeralPublicKey);
-  const ciphertextBuf = Buffer.from(bundle.ciphertext, 'hex');
+export function decrypt(bundle: ECIESCiphertext, privateKey: string): DecryptResult {
+  try {
+    if (!bundle.ephemeralPublicKey || !bundle.ciphertext || !bundle.mac) {
+      return { ok: false, error: 'INVALID_INPUT' };
+    }
 
-  // Shared point S' = d · R  (equals r · Q by ECDH)
-  const S = scalarMultiply(d, R);
-  const keystream = deriveKeystream(S, ciphertextBuf.length);
+    const d = BigInt(`0x${privateKey}`);
+    const R = decodePoint(bundle.ephemeralPublicKey);
+    const ciphertextBuf = Buffer.from(bundle.ciphertext, 'hex');
 
-  const plaintextBuf = Buffer.alloc(ciphertextBuf.length);
-  for (let i = 0; i < ciphertextBuf.length; i++) {
-    plaintextBuf[i] = ciphertextBuf[i] ^ keystream[i];
+    // Shared point S' = d · R  (equals r · Q by ECDH)
+    const S = scalarMultiply(d, R);
+    if (S === 'infinity') return { ok: false, error: 'POINT_AT_INFINITY' };
+
+    // Re-derive MAC key and verify integrity in constant time before decrypting
+    const macKey = deriveMacKey(S);
+    const expectedMac = computeMac(macKey, ciphertextBuf);
+    const expectedBuf = Buffer.from(expectedMac, 'hex');
+    const actualBuf = Buffer.from(bundle.mac, 'hex');
+
+    if (expectedBuf.length !== actualBuf.length) {
+      return { ok: false, error: 'MAC_MISMATCH' };
+    }
+
+    // crypto.timingSafeEqual prevents timing side-channel on MAC comparison
+    if (!crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+      return { ok: false, error: 'MAC_MISMATCH' };
+    }
+
+    // MAC is valid — now decrypt
+    const keystream = deriveKeystream(S, ciphertextBuf.length);
+    const plaintextBuf = Buffer.alloc(ciphertextBuf.length);
+    for (let i = 0; i < ciphertextBuf.length; i++) {
+      plaintextBuf[i] = ciphertextBuf[i] ^ keystream[i];
+    }
+
+    return { ok: true, plaintext: plaintextBuf.toString('utf8') };
+  } catch {
+    return { ok: false, error: 'INVALID_INPUT' };
   }
-
-  return plaintextBuf.toString('utf8');
 }
+
+/**
+ * Convenience wrapper: decrypt and return the plaintext, or a fallback string.
+ * Use when you want to silently handle decryption failures without branching on Result.
+ *
+ * @param bundle - ciphertext bundle from encrypt()
+ * @param privateKey - hex private key scalar
+ * @param fallback - returned if decryption fails for any reason
+ */
+export function decryptOrFallback(
+  bundle: ECIESCiphertext,
+  privateKey: string,
+  fallback: string = '',
+): string {
+  const result = decrypt(bundle, privateKey);
+  return result.ok ? result.plaintext : fallback;
+}
+
+// ---------------------------------------------------------------------------
+// ECDH scalar multiplication (exported for ECDSA in ecdsa.ts)
+// ---------------------------------------------------------------------------
+
+/**
+ * Expose scalar multiply for use by ecdsa.ts.
+ * Kept internal-only via naming convention — do not use outside crypto/.
+ */
+export function _scalarMultiply(k: bigint, pt: { x: bigint; y: bigint } | 'infinity'): typeof pt {
+  return scalarMultiply(k, pt);
+}
+export function _pointAdd(
+  p1: { x: bigint; y: bigint } | 'infinity',
+  p2: { x: bigint; y: bigint } | 'infinity',
+): typeof p1 {
+  return pointAdd(p1, p2);
+}
+export { N as CURVE_N, P as CURVE_P, G as CURVE_G };
