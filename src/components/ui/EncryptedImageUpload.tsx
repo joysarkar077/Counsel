@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { generateAESKey, exportAESKey, encryptFile } from '@/lib/crypto/fileCrypto';
+import { generateFileKeyPair, encryptFileECIES } from '@/lib/crypto/fileCrypto';
 import { useUploadThing } from '@/utils/uploadthing';
 
 interface EncryptedImageUploadProps {
@@ -45,17 +45,23 @@ export default function EncryptedImageUpload({ onUploadSuccess }: EncryptedImage
     setProgress(10);
 
     try {
-      // 1. Generate AES Key & Encrypt
-      const aesKey = await generateAESKey();
-      const aesKeyHex = await exportAESKey(aesKey);
-      const { encryptedBlob, ivHex } = await encryptFile(file, aesKey);
+      // 1. Generate ECIES Keypair & Encrypt
+      const fileKeyPair = generateFileKeyPair();
+      const arrayBuffer = await file.arrayBuffer();
+      const fileBytes = new Uint8Array(arrayBuffer);
+      
+      const bundle = encryptFileECIES(fileBytes, fileKeyPair.publicKey);
 
       setProgress(30);
 
-      // 2. Prepare for Uploadthing
-      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_') || 'encrypted_profile.jpg';
-      const encryptedFile = new File([encryptedBlob], safeName, { type: file.type || 'image/jpeg' });
-      currentKeyPayload.current = `${aesKeyHex}:${ivHex}`;
+      // 2. Prepare for Uploadthing (upload the JSON bundle directly)
+      const bundleJson = JSON.stringify(bundle);
+      const encodedBlob = new Blob([bundleJson], { type: 'application/octet-stream' });
+      const safeName = file.name.replace(/[^a-zA-Z0-9.\-_]/g, '_') || 'encrypted_profile.bin';
+      const encryptedFile = new File([encodedBlob], safeName, { type: file.type || 'image/jpeg' });
+      
+      // keyPayload is stringified JSON containing the private scalar
+      currentKeyPayload.current = JSON.stringify({ filePrivateKey: fileKeyPair.privateKey });
 
       setProgress(50);
 
@@ -89,7 +95,7 @@ export default function EncryptedImageUpload({ onUploadSuccess }: EncryptedImage
               <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
               <path d="M7 11V7a5 5 0 0 1 10 0v4" />
             </svg>
-            Zero-Trust Encrypted
+            Zero-Trust Encrypted (ECIES)
           </div>
         </div>
       ) : (
@@ -101,7 +107,7 @@ export default function EncryptedImageUpload({ onUploadSuccess }: EncryptedImage
           </svg>
           <p className="text-xs font-bold text-slate-700 mb-0.5">Upload Image File</p>
           <p className="text-[10px] text-slate-500 mb-3 text-center max-w-[200px]">
-            Encrypted client-side with AES-256 before upload.
+            Encrypted client-side with ECIES before upload.
           </p>
           <button
             type="button"

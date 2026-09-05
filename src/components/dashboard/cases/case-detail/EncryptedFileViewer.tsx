@@ -1,11 +1,16 @@
 'use client';
 
 import { useState } from 'react';
-import { importAESKey, decryptFile } from '@/lib/crypto/fileCrypto';
+import { decryptFileECIES, type ECIESFileBundle } from '@/lib/crypto/fileCrypto';
 
 interface EncryptedFileViewerProps {
   fileUrl: string;
-  fileKey: string; // Format: aesKeyHex:ivHex
+  /**
+   * JSON string: { filePrivateKey: string }
+   * The per-file ECC private key scalar used to decrypt the ECIES bundle.
+   * The bundle (ephemeralPublicKey, ciphertext, mac) is embedded in the uploaded file.
+   */
+  fileKey: string;
   fileName: string;
 }
 
@@ -17,34 +22,44 @@ export function EncryptedFileViewer({ fileUrl, fileKey, fileName }: EncryptedFil
     setIsDecrypting(true);
     setError(null);
     try {
-      // 1. Fetch the encrypted file from UploadThing
+      // 1. Fetch the encrypted file bundle from UploadThing
       const response = await fetch(fileUrl);
       if (!response.ok) throw new Error('Failed to fetch file from server');
-      const encryptedBuffer = await response.arrayBuffer();
+      const rawText = await response.text();
 
-      // 2. Parse the key payload
-      const parts = fileKey.split(':');
-      if (parts.length !== 2) throw new Error('Invalid encryption key format');
-      const [aesKeyHex, ivHex] = parts;
+      // 2. Parse the ECIES bundle (the entire uploaded content is the JSON bundle)
+      const bundle: ECIESFileBundle = JSON.parse(rawText);
 
-      // 3. Decrypt
-      const aesKey = await importAESKey(aesKeyHex);
-      const decryptedBlob = await decryptFile(encryptedBuffer, aesKey, ivHex);
+      // 3. Parse the key payload to get the file private key scalar
+      const keyPayload = JSON.parse(fileKey);
+      const { filePrivateKey } = keyPayload;
+      if (!filePrivateKey) throw new Error('File key payload missing filePrivateKey');
 
-      // 4. Trigger download
-      const objectUrl = URL.createObjectURL(decryptedBlob);
+      // 4. Decrypt — MAC is verified internally; returns error on tamper
+      const result = decryptFileECIES(bundle, filePrivateKey);
+      if (!result.ok) {
+        throw new Error(
+          result.error === 'MAC_MISMATCH'
+            ? 'File integrity check failed — the file may have been tampered with.'
+            : `Decryption failed: ${result.error}`,
+        );
+      }
+
+      // 5. Trigger browser download with the decrypted bytes
+      const blob = new Blob([result.data as any]);
+      const objectUrl = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = objectUrl;
       link.download = fileName || 'decrypted_file';
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
-      
-      // Cleanup
+
+      // Cleanup object URL after a short delay
       setTimeout(() => URL.revokeObjectURL(objectUrl), 5000);
     } catch (err: any) {
       console.error(err);
-      setError('Decryption failed');
+      setError(err.message || 'Decryption failed');
     } finally {
       setIsDecrypting(false);
     }
@@ -56,14 +71,16 @@ export function EncryptedFileViewer({ fileUrl, fileKey, fileName }: EncryptedFil
         {fileName || 'Encrypted File'}
       </span>
       {error ? (
-        <span className="text-[10px] font-semibold text-red-500">{error}</span>
+        <span className="text-[10px] font-semibold text-red-500" title={error}>
+          {error.length > 40 ? 'Integrity error — tampered?' : error}
+        </span>
       ) : (
         <button
           onClick={handleDownload}
           disabled={isDecrypting}
           className="text-[10px] font-semibold text-navy-core hover:text-navy-deep text-left disabled:opacity-50 transition-colors"
         >
-          {isDecrypting ? 'Decrypting...' : 'Download (E2EE)'}
+          {isDecrypting ? 'Decrypting…' : 'Download (ECIES)'}
         </button>
       )}
     </div>

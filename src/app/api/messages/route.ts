@@ -2,6 +2,10 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { Message } from '@/models/Message';
 import { Case } from '@/models/Case';
+import { verifyHMAC } from '@/lib/crypto/hmac';
+
+/** Server-side HMAC key — must match the client-side HMAC_KEY constant in messages-tab.tsx. */
+const HMAC_KEY = 'client-integrity-key';
 
 /** Check if a userId is an authorized participant (client or lawyer) on a case. */
 async function isAuthorized(caseId: string, userId: string): Promise<boolean> {
@@ -48,24 +52,37 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { caseId, ciphertext } = body;
+    const { caseId, ciphertext, signature, integrityHash } = body;
 
     if (!caseId || !ciphertext) {
-      return NextResponse.json({ success: false, error: 'caseId and ciphertext are required' }, { status: 400 });
+      return NextResponse.json(
+        { success: false, error: 'caseId and ciphertext are required' },
+        { status: 400 },
+      );
     }
 
     if (!(await isAuthorized(caseId, userId))) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
+    // --- Integrity verification (Req #2) ---
+    // Verify the HMAC before persisting. Messages with invalid MACs are rejected.
+    if (integrityHash) {
+      const isIntact = verifyHMAC(HMAC_KEY, ciphertext, integrityHash);
+      if (!isIntact) {
+        return NextResponse.json(
+          { success: false, error: 'Message integrity check failed — HMAC mismatch' },
+          { status: 400 },
+        );
+      }
+    }
+
     const newMessage = await Message.create({
       caseId,
       senderId: userId,
-      // ciphertext is a JSON string: { ciphertextHex, ivHex } — encrypted client-side
-      ciphertext,
-      // signature repurposed as sender identity tag for now
-      signature: userId,
-      integrityHash: 'n/a',
+      ciphertext, // JSON-serialised ECIESCiphertext bundle — encrypted client-side
+      signature: signature || '{}', // ECDSA { r, s } JSON from the sender
+      integrityHash: integrityHash || '',
     });
 
     return NextResponse.json({ success: true, data: newMessage }, { status: 201 });

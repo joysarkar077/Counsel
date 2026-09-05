@@ -3,20 +3,29 @@
 /**
  * MessagesTab — Real-time E2EE chat between client and lawyer.
  *
- * Encryption: AES-256-GCM using the shared AES case key, which is decrypted
- * server-side from the user's RSA private key and passed in as `aesKeyHex`.
- * Messages are encrypted on the client before being sent, and decrypted
- * on the client after being fetched. The server never sees plaintext.
+ * Encryption: ECIES (secp256k1) using the per-case ECC keypair.
+ * - Outbound: encrypt(text, casePublicKey) → ephemeral keypair per message
+ * - Inbound:  decrypt(bundle, casePrivateKeyHex) → MAC verified before plaintext
+ *
+ * Integrity: Each message MAC is verified on receipt; tampered messages are
+ * silently dropped (and flagged in the UI) rather than displayed.
+ *
+ * Non-repudiation: Messages are ECDSA-signed with the sender's ECC private key
+ * and the signature is stored server-side via the `signature` field.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { importAESKey, encryptText, decryptText } from '@/lib/crypto/textCrypto';
+import { encrypt, decrypt, type ECIESCiphertext } from '@/lib/crypto/ecc';
+import { signECDSA } from '@/lib/crypto/ecdsa';
+import { generateHMAC } from '@/lib/crypto/hmac';
 
 interface RawMessage {
   _id: string;
   caseId: string;
   senderId: string;
-  ciphertext: string; // JSON string: { ciphertextHex, ivHex }
+  ciphertext: string; // JSON-serialised ECIESCiphertext bundle
+  signature: string;  // ECDSA { r, s } JSON
+  integrityHash: string; // HMAC-SHA256 over ciphertext field
   createdAt: string;
 }
 
@@ -26,57 +35,78 @@ interface DecryptedMessage {
   text: string;
   createdAt: Date;
   isMine: boolean;
+  integrityOk: boolean;
 }
 
 interface MessagesTabProps {
   caseId: string;
-  /** The AES-256 case key as a hex string, decrypted server-side from the user's RSA key. */
-  aesKeyHex: string;
+  /** The per-case ECC private key scalar as a hex string. */
+  casePrivateKeyHex: string;
+  /** The per-case ECC public key ('x,y' hex) — used to encrypt outbound messages. */
+  casePublicKey: string;
   /** The current user's MongoDB ObjectId string. */
   currentUserId: string;
+  /** The current user's ECC private key scalar (for ECDSA signing outbound messages). */
+  senderPrivateKeyHex?: string;
 }
 
+/** Server secret proxy for client-side HMAC — in prod use a session-derived key. */
+const HMAC_KEY = 'client-integrity-key';
 const POLL_INTERVAL_MS = 5000;
 
-export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabProps) {
+export function MessagesTab({
+  caseId,
+  casePrivateKeyHex,
+  casePublicKey,
+  currentUserId,
+  senderPrivateKeyHex,
+}: MessagesTabProps) {
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [input, setInput] = useState('');
   const [sending, setSending] = useState(false);
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(true);
   const bottomRef = useRef<HTMLDivElement>(null);
-  const aesKeyRef = useRef<CryptoKey | null>(null);
   const lastMessageCountRef = useRef(0);
 
-  // Import the AES key once on mount
-  useEffect(() => {
-    if (!aesKeyHex) return;
-    importAESKey(aesKeyHex)
-      .then((key) => { aesKeyRef.current = key; })
-      .catch((err) => console.error('Failed to import AES key for messages:', err));
-  }, [aesKeyHex]);
-
   const fetchAndDecrypt = useCallback(async () => {
-    if (!aesKeyRef.current) return;
+    if (!casePrivateKeyHex) return;
     try {
-      const res = await fetch(`/api/messages?caseId=${caseId}`);
+      const res = await fetch(`/api/messages?caseId=${caseId}`, {
+        headers: { 'x-user-id': currentUserId },
+      });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
 
       const decrypted: DecryptedMessage[] = [];
       for (const msg of json.data as RawMessage[]) {
         try {
-          const payload = JSON.parse(msg.ciphertext) as { ciphertextHex: string; ivHex: string };
-          const text = await decryptText(payload.ciphertextHex, payload.ivHex, aesKeyRef.current!);
+          const bundle = JSON.parse(msg.ciphertext) as ECIESCiphertext;
+          const result = decrypt(bundle, casePrivateKeyHex);
+
+          if (!result.ok) {
+            // MAC_MISMATCH — show a tamper warning placeholder instead of skipping silently
+            decrypted.push({
+              id: msg._id,
+              senderId: msg.senderId,
+              text: '[⚠ Message integrity check failed — possible tampering]',
+              createdAt: new Date(msg.createdAt),
+              isMine: msg.senderId === currentUserId,
+              integrityOk: false,
+            });
+            continue;
+          }
+
           decrypted.push({
             id: msg._id,
             senderId: msg.senderId,
-            text,
+            text: result.plaintext,
             createdAt: new Date(msg.createdAt),
             isMine: msg.senderId === currentUserId,
+            integrityOk: true,
           });
         } catch {
-          // Skip messages we can't decrypt (e.g., from before key rotation)
+          // Skip completely unparseable messages (e.g., old AES-era records)
         }
       }
       setMessages(decrypted);
@@ -91,7 +121,7 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
     } finally {
       setLoading(false);
     }
-  }, [caseId, currentUserId]);
+  }, [caseId, currentUserId, casePrivateKeyHex]);
 
   // Initial fetch + polling
   useEffect(() => {
@@ -102,23 +132,36 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
 
   const handleSend = async () => {
     const text = input.trim();
-    if (!text || !aesKeyRef.current || sending) return;
+    if (!text || !casePrivateKeyHex || !casePublicKey || sending) return;
     setSending(true);
     setError('');
     try {
-      const { ciphertextHex, ivHex } = await encryptText(text, aesKeyRef.current);
-      const ciphertext = JSON.stringify({ ciphertextHex, ivHex });
+      // Encrypt with ECIES to the case public key
+      const bundle: ECIESCiphertext = encrypt(text, casePublicKey);
+      const ciphertext = JSON.stringify(bundle);
+
+      // ECDSA sign the ciphertext JSON string for non-repudiation
+      let signature = '{}';
+      if (senderPrivateKeyHex) {
+        const sig = signECDSA(ciphertext, senderPrivateKeyHex);
+        signature = JSON.stringify(sig);
+      }
+
+      // HMAC integrity tag over the ciphertext string
+      const integrityHash = generateHMAC(HMAC_KEY, ciphertext);
 
       const res = await fetch('/api/messages', {
         method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ caseId, ciphertext }),
+        headers: {
+          'Content-Type': 'application/json',
+          'x-user-id': currentUserId,
+        },
+        body: JSON.stringify({ caseId, ciphertext, signature, integrityHash }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
 
       setInput('');
-      // Immediately fetch to show the sent message
       await fetchAndDecrypt();
     } catch (err: any) {
       setError('Failed to send message. Please try again.');
@@ -152,7 +195,7 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
     }
   }
 
-  if (!aesKeyHex) {
+  if (!casePrivateKeyHex || !casePublicKey) {
     return (
       <div className="flex flex-col h-[520px] rounded-xl border border-border bg-bg-card overflow-hidden items-center justify-center">
         <p className="text-sm text-slate-500 italic">
@@ -170,7 +213,7 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="h-4 w-4 text-emerald-600" aria-hidden>
             <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
           </svg>
-          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">End-to-End Encrypted</span>
+          <span className="text-xs font-bold text-emerald-700 uppercase tracking-wide">ECIES Encrypted</span>
         </div>
         <span className="text-xs text-slate-400 font-mono">Polling every 5s</span>
       </div>
@@ -192,7 +235,7 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
               </svg>
             </div>
             <p className="text-sm font-semibold text-slate-600">No messages yet</p>
-            <p className="text-xs text-slate-400 max-w-xs">Start the conversation. All messages are encrypted before leaving your device.</p>
+            <p className="text-xs text-slate-400 max-w-xs">Start the conversation. All messages are ECIES-encrypted before leaving your device.</p>
           </div>
         ) : (
           grouped.map(({ date, msgs }) => (
@@ -212,13 +255,15 @@ export function MessagesTab({ caseId, aesKeyHex, currentUserId }: MessagesTabPro
                   >
                     <div
                       className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${
-                        msg.isMine
+                        !msg.integrityOk
+                          ? 'bg-red-50 border border-red-200 text-red-700 rounded-br-sm'
+                          : msg.isMine
                           ? 'bg-slate-900 text-white rounded-br-sm'
                           : 'bg-slate-100 text-slate-800 rounded-bl-sm'
                       }`}
                     >
                       <p className="text-sm leading-relaxed break-words">{msg.text}</p>
-                      <p className={`text-[10px] mt-1 ${msg.isMine ? 'text-slate-400' : 'text-slate-500'} text-right`}>
+                      <p className={`text-[10px] mt-1 ${msg.isMine && msg.integrityOk ? 'text-slate-400' : 'text-slate-500'} text-right`}>
                         {formatTime(msg.createdAt)}
                       </p>
                     </div>

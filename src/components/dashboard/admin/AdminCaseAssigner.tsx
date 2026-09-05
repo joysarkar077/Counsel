@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { decrypt, encrypt } from '@/lib/crypto/rsa';
-import { exportAESKey, importAESKey } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, encrypt as encryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
 interface AdminCaseAssignerProps {
   caseId: string;
   adminId: string;
-  encryptedCaseKey: string; // The admin's copy of the AES key
+  /** JSON-serialised ECIESCiphertext bundle containing the case ECC private scalar */
+  encryptedCaseKey: string; 
 }
 
 export function AdminCaseAssigner({ caseId, adminId, encryptedCaseKey }: AdminCaseAssignerProps) {
@@ -33,7 +33,7 @@ export function AdminCaseAssigner({ caseId, adminId, encryptedCaseKey }: AdminCa
     setErrorMessage('');
 
     try {
-      // 1. Fetch Lawyer's public key
+      // 1. Fetch Lawyer's public key (ECC secp256k1 public key)
       const pubKeyRes = await fetch(`/api/user/${lawyerId}/public-key`);
       const pubKeyJson = await pubKeyRes.json();
       
@@ -41,22 +41,26 @@ export function AdminCaseAssigner({ caseId, adminId, encryptedCaseKey }: AdminCa
         throw new Error(pubKeyJson.error || 'Failed to fetch lawyer public key');
       }
 
-      // 2. Fetch Admin's private key (this requires a secure local store or password derivation in a real app)
-      // For this prototype, we'll fetch it from the /api/user/profile equivalent (me/public-key would need private key exposed for this demo, 
-      // which is dangerous. In a real Zero-Trust app, the Admin's private key is stored in memory after login, 
-      // or decrypted locally using a password).
-      // Assuming `window.sessionPrivateKey` is populated during login for this prototype demonstration.
-      const adminPrivateKey = (window as any).sessionPrivateKey;
-      if (!adminPrivateKey) {
+      // 2. Fetch Admin's private key
+      // For this prototype, we'll fetch it from the session memory (populated during login).
+      // In a real Zero-Trust app, the Admin's private key is decrypted locally using a password.
+      const adminPrivateKeyHex = (window as any).sessionPrivateKey;
+      if (!adminPrivateKeyHex) {
         throw new Error('Admin private key not found in session memory. Please re-login.');
       }
 
-      // 3. Decrypt the AES key using Admin's private key
-      const aesKeyHex = decrypt(encryptedCaseKey, adminPrivateKey);
+      // 3. Decrypt the case scalar using Admin's private key (ECIES)
+      const bundle: ECIESCiphertext = JSON.parse(encryptedCaseKey);
+      const decryptResult = decryptECIES(bundle, adminPrivateKeyHex);
+      if (!decryptResult.ok) {
+        throw new Error('Failed to decrypt case key. You may not be authorized.');
+      }
+      const casePrivateKeyHex = decryptResult.plaintext;
 
-      // 4. Encrypt the AES key using Lawyer's public key
-      const lawyerPubKey = JSON.parse(pubKeyJson.data.publicKey);
-      const newEncryptedCaseKey = encrypt(aesKeyHex, lawyerPubKey);
+      // 4. Encrypt the case scalar using Lawyer's public key (ECIES)
+      const lawyerPubKeyHex = pubKeyJson.data.publicKey; // This should be the ECC hex string
+      const newBundle = encryptECIES(casePrivateKeyHex, lawyerPubKeyHex);
+      const newEncryptedCaseKey = JSON.stringify(newBundle);
 
       // 5. Submit assignment
       const assignRes = await fetch(`/api/cases/${caseId}/assign`, {

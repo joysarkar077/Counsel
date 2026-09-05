@@ -6,12 +6,13 @@ import { EncryptedFileViewer } from './EncryptedFileViewer';
 
 interface ExhibitsTabProps {
   caseId: string;
-  aesKeyHex: string;
+  casePrivateKeyHex: string;
+  casePublicKey: string;
   initialData: string;
   readOnly?: boolean;
 }
 
-export function ExhibitsTab({ caseId, aesKeyHex, initialData, readOnly = false }: ExhibitsTabProps) {
+export function ExhibitsTab({ caseId, casePrivateKeyHex, casePublicKey, initialData, readOnly = false }: ExhibitsTabProps) {
   let parsed = [];
   try {
     parsed = JSON.parse(initialData);
@@ -25,7 +26,8 @@ export function ExhibitsTab({ caseId, aesKeyHex, initialData, readOnly = false }
       <SecureFieldEditor
         title="Case Exhibits & Evidence Log"
         caseId={caseId}
-        aesKeyHex={aesKeyHex}
+        casePrivateKeyHex={casePrivateKeyHex}
+        casePublicKey={casePublicKey}
         field="exhibits_enc"
         initialData={parsed}
         readOnly={readOnly}

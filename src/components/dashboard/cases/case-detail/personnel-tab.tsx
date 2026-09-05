@@ -1,10 +1,11 @@
-'use client';
+﻿'use client';
 
 import { SecureFieldEditor } from './SecureFieldEditor';
 
 interface PersonnelTabProps {
   caseId: string;
-  aesKeyHex: string;
+  casePrivateKeyHex: string;
+  casePublicKey: string;
   initialDA: string;
   initialJudge: string;
   initialOfficers: string;
@@ -13,7 +14,7 @@ interface PersonnelTabProps {
 }
 
 export function PersonnelTab({ 
-  caseId, aesKeyHex, initialDA, initialJudge, initialOfficers, initialWitnesses, initialJurors 
+  caseId, casePrivateKeyHex, casePublicKey, initialDA, initialJudge, initialOfficers, initialWitnesses, initialJurors 
 }: PersonnelTabProps) {
   
   const parseJSON = (str: string, fallback: any) => {
@@ -37,7 +38,8 @@ export function PersonnelTab({
         <SecureFieldEditor
           title="Judge"
           caseId={caseId}
-          aesKeyHex={aesKeyHex}
+          casePrivateKeyHex={casePrivateKeyHex}
+          casePublicKey={casePublicKey}
           field="judge_enc"
           initialData={judgeData}
           renderDisplay={(data) => (
@@ -60,7 +62,8 @@ export function PersonnelTab({
         <SecureFieldEditor
           title="District Attorney / Opposing Counsel"
           caseId={caseId}
-          aesKeyHex={aesKeyHex}
+          casePrivateKeyHex={casePrivateKeyHex}
+          casePublicKey={casePublicKey}
           field="da_enc"
           initialData={daData}
           renderDisplay={(data) => (
@@ -85,7 +88,8 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Investigating Officers"
         caseId={caseId}
-        aesKeyHex={aesKeyHex}
+        casePrivateKeyHex={casePrivateKeyHex}
+          casePublicKey={casePublicKey}
         field="officers_enc"
         initialData={officersData}
         renderDisplay={(data: any[]) => (
@@ -94,7 +98,7 @@ export function PersonnelTab({
             {data.map((o, i) => (
               <div key={i} className="p-3 border border-slate-200 rounded-lg bg-slate-50">
                 <p className="font-bold text-slate-800">{o.name}</p>
-                <p className="text-xs text-slate-500">{o.badge} • {o.agency}</p>
+                <p className="text-xs text-slate-500">{o.badge} â€¢ {o.agency}</p>
               </div>
             ))}
           </div>
@@ -118,7 +122,8 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Witnesses"
         caseId={caseId}
-        aesKeyHex={aesKeyHex}
+        casePrivateKeyHex={casePrivateKeyHex}
+          casePublicKey={casePublicKey}
         field="witnesses_enc"
         initialData={witnessesData}
         renderDisplay={(data: any[]) => (
@@ -158,7 +163,8 @@ export function PersonnelTab({
       <SecureFieldEditor
         title="Juror List"
         caseId={caseId}
-        aesKeyHex={aesKeyHex}
+        casePrivateKeyHex={casePrivateKeyHex}
+          casePublicKey={casePublicKey}
         field="jurors_enc"
         initialData={jurorsData}
         renderDisplay={(data: any[]) => (
@@ -191,3 +197,4 @@ export function PersonnelTab({
     </div>
   );
 }
+

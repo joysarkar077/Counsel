@@ -1,11 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { decryptFile, importAESKey } from '@/lib/crypto/fileCrypto';
+import { decryptFileECIES, type ECIESFileBundle } from '@/lib/crypto/fileCrypto';
 
 interface EncryptedImageProps {
   url: string;
-  avatarKeyHex: string; // The plaintext AES key + IV (decrypted by server/parent)
+  avatarKeyHex: string; // JSON string containing { filePrivateKey } (decrypted by server/parent)
   className?: string;
   alt?: string;
 }
@@ -20,16 +20,27 @@ export default function EncryptedImage({ url, avatarKeyHex, className = '', alt 
     async function loadAndDecrypt() {
       if (!url || !avatarKeyHex) return;
       try {
-        const [aesKeyHex, ivHex] = avatarKeyHex.split(':');
-        
-        // 1. Fetch encrypted blob
+        const keyPayload = JSON.parse(avatarKeyHex);
+        const filePrivateKey = keyPayload.filePrivateKey;
+
+        if (!filePrivateKey) {
+           throw new Error('Invalid encryption key format for ECIES');
+        }
+
+        // 1. Fetch encrypted blob (which is actually an ECIES JSON bundle)
         const res = await fetch(url);
         if (!res.ok) throw new Error('Failed to fetch image');
-        const encryptedBuffer = await res.arrayBuffer();
+        const rawText = await res.text();
 
-        // 2. Import key and decrypt
-        const cryptoKey = await importAESKey(aesKeyHex);
-        const decryptedBlob = await decryptFile(encryptedBuffer, cryptoKey, ivHex);
+        // 2. Parse the ECIES bundle and decrypt
+        const bundle: ECIESFileBundle = JSON.parse(rawText);
+        const result = decryptFileECIES(bundle, filePrivateKey);
+        
+        if (!result.ok) {
+           throw new Error('Failed to decrypt image: ' + result.error);
+        }
+
+        const decryptedBlob = new Blob([result.data as any]);
 
         // 3. Create Object URL
         objectUrl = URL.createObjectURL(decryptedBlob);

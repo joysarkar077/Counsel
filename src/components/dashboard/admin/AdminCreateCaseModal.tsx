@@ -3,8 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import { useRouter } from 'next/navigation';
-import { generateAESKey, exportAESKey, encryptText } from '@/lib/crypto/textCrypto';
-import { encrypt } from '@/lib/crypto/rsa';
+import { generateKeyPair, encrypt } from '@/lib/crypto/ecc';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { UserPickerPanel, type PickableUser } from './UserPickerPanel';
@@ -117,19 +116,18 @@ export function AdminCreateCaseModal({ isOpen, onClose }: AdminCreateCaseModalPr
     try {
       if (!selectedLawyer.publicKey) throw new Error('Selected lawyer has no public key. They may need to log in first.');
 
-      // 1. Generate AES-256 case key
-      const aesKey = await generateAESKey();
-      const aesKeyHex = await exportAESKey(aesKey);
+      // 1. Generate ECIES case keypair
+      const caseKeyPair = generateKeyPair();
 
-      // 2. Wrap AES key for all authorized parties
+      // 2. Wrap case private scalar for all authorized parties
       const accessKeys: { userId: string; encryptedCaseKey: string }[] = [];
       const added = new Set<string>();
 
       const addKey = (userId: string, pubKeyStr: string) => {
         if (added.has(userId)) return;
         try {
-          const pub = JSON.parse(pubKeyStr);
-          accessKeys.push({ userId, encryptedCaseKey: encrypt(aesKeyHex, pub) });
+          // In the new ECIES model, pubKeyStr is a plain hex string ('x,y')
+          accessKeys.push({ userId, encryptedCaseKey: JSON.stringify(encrypt(caseKeyPair.privateKey, pubKeyStr)) });
           added.add(userId);
         } catch {
           // Skip malformed key
@@ -143,16 +141,17 @@ export function AdminCreateCaseModal({ isOpen, onClose }: AdminCreateCaseModalPr
       // Client (optional)
       if (selectedClient?.publicKey) addKey(selectedClient.id, selectedClient.publicKey);
 
-      // 3. Encrypt all sensitive fields with AES
-      const enc = async (val: string) => JSON.stringify(await encryptText(val, aesKey));
+      // 3. Encrypt all sensitive fields with ECIES
+      const enc = (val: string) => JSON.stringify(encrypt(val, caseKeyPair.publicKey));
       const payload = {
-        title_enc: await enc(fields.title),
-        description_enc: await enc(fields.description),
-        opposingParty_enc: await enc(fields.opposingParty),
-        claimValue_enc: fields.claimValue ? await enc(fields.claimValue) : '',
-        category_enc: await enc(fields.category),
-        urgency_enc: await enc(fields.urgency),
-        jurisdiction_enc: await enc(fields.jurisdiction),
+        casePublicKey: caseKeyPair.publicKey,
+        title_enc: enc(fields.title),
+        description_enc: enc(fields.description),
+        opposingParty_enc: enc(fields.opposingParty),
+        claimValue_enc: fields.claimValue ? enc(fields.claimValue) : '',
+        category_enc: enc(fields.category),
+        urgency_enc: enc(fields.urgency),
+        jurisdiction_enc: enc(fields.jurisdiction),
         accessKeys,
         lawyerIds: [selectedLawyer.id],
         clientId: selectedClient ? selectedClient.id : null,

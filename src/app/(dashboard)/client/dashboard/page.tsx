@@ -4,8 +4,8 @@ import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { Case } from '@/models/Case';
 import { Notification } from '@/models/Notification';
-import { decrypt } from '@/lib/crypto/rsa';
-import { decryptText, importAESKey } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
+import { decrypt as decryptRSA } from '@/lib/crypto/rsa';
 import { ClientNotifications, ClientNotificationItem } from '@/components/dashboard/client/ClientNotifications';
 import EncryptedImage from '@/components/ui/EncryptedImage';
 
@@ -38,45 +38,41 @@ export default async function ClientDashboardPage() {
     );
   }
 
-  // Parse RSA private key if available for decrypting encrypted user profile & case fields
-  let privateKey: any = null;
-  if (userDoc.publicKey && userDoc.encryptedPrivateKey) {
-    try {
-      const pub = JSON.parse(userDoc.publicKey);
-      privateKey = { d: userDoc.encryptedPrivateKey, n: pub.n };
-    } catch (err) {
-      console.error('Failed to parse RSA key:', err);
-    }
-  }
+  const eccPrivateKeyHex = userDoc.encryptedPrivateKey;
 
-  // Helper to safely decrypt RSA encrypted profile fields
+  // Helper to safely decrypt ECIES encrypted profile fields
   const tryDecryptProfileField = (encVal: string | undefined, fallback: string): string => {
-    if (!encVal || !privateKey) return fallback;
+    if (!encVal || !eccPrivateKeyHex) return fallback;
     try {
-      return decrypt(encVal, privateKey);
+      const bundle: ECIESCiphertext = JSON.parse(encVal);
+      const result = decryptECIES(bundle, eccPrivateKeyHex);
+      return result.ok ? result.plaintext : fallback;
     } catch {
       return fallback || encVal;
     }
   };
 
-  // Helper to decrypt AES encrypted case fields
-  const tryDecryptCaseField = async (
+  // Helper to decrypt ECIES encrypted case fields
+  const tryDecryptCaseField = (
     encryptedJsonStr: string | undefined,
     accessKeys: any[],
     fallback: string
-  ): Promise<string> => {
-    if (!encryptedJsonStr || !privateKey || !accessKeys) return fallback;
+  ): string => {
+    if (!encryptedJsonStr || !eccPrivateKeyHex || !accessKeys) return fallback;
     try {
       const myAccess = accessKeys.find((ak: any) => ak.userId.toString() === userId);
-      if (!myAccess) return fallback;
+      if (!myAccess || !myAccess.encryptedCaseKey) return fallback;
 
-      const aesKeyHex = decrypt(myAccess.encryptedCaseKey, privateKey);
-      const aesKey = await importAESKey(aesKeyHex);
+      const accessKeyBundle: ECIESCiphertext = JSON.parse(myAccess.encryptedCaseKey);
+      const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
+      if (!caseKeyResult.ok) return fallback;
 
-      const payload = JSON.parse(encryptedJsonStr);
-      if (!payload.ciphertextHex || !payload.ivHex) return fallback;
+      const casePrivateKeyHex = caseKeyResult.plaintext;
 
-      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+      const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
+      const result = decryptECIES(fieldBundle, casePrivateKeyHex);
+
+      return result.ok ? result.plaintext : fallback;
     } catch {
       return fallback;
     }
@@ -90,28 +86,37 @@ export default async function ClientDashboardPage() {
   const bloodGroup = tryDecryptProfileField(userDoc.bloodGroup_enc, 'Not specified');
   const avatarKey = tryDecryptProfileField(userDoc.avatarKey_enc, '');
 
+  // Parse RSA private key if available for decrypting encrypted user profile & notifications
+  let rsaPrivateKey: any = null;
+  if (userDoc.rsaPublicKey && userDoc.rsaPrivateKey) {
+    try {
+      const pub = JSON.parse(userDoc.rsaPublicKey);
+      rsaPrivateKey = { d: userDoc.rsaPrivateKey, n: pub.n };
+    } catch (err) {
+      console.error('Failed to parse RSA key:', err);
+    }
+  }
+
   // Process live cases from DB
-  const cases = await Promise.all(
-    caseDocs.map(async (doc: any) => ({
-      id: doc._id.toString(),
-      caseId: doc.caseId || `CASE-${doc._id.toString().slice(-4)}`,
-      title: await tryDecryptCaseField(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
-      category: await tryDecryptCaseField(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
-      status: doc.status || 'PENDING_REVIEW',
-      updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : 'Recent',
-      createdAt: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recent',
-    }))
-  );
+  const cases = caseDocs.slice(0, 3).map((doc: any) => ({
+    id: doc._id.toString(),
+    caseId: doc.caseId || `CASE-${doc._id.toString().slice(-4)}`,
+    title: tryDecryptCaseField(doc.title_enc, doc.accessKeys, 'Encrypted Legal Case'),
+    category: tryDecryptCaseField(doc.category_enc, doc.accessKeys, 'Encrypted Category'),
+    status: doc.status || 'PENDING_REVIEW',
+    updatedAt: doc.updatedAt ? new Date(doc.updatedAt).toLocaleDateString() : 'Recent',
+    createdAt: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recent',
+  }));
 
   // Process live notifications from DB
   const notifications: ClientNotificationItem[] = notificationDocs.map((doc: any) => {
     let title = 'Notification';
     let message = '';
-    if (privateKey && doc.title_enc) {
-      try { title = decrypt(doc.title_enc, privateKey); } catch { title = 'Case Activity Update'; }
+    if (rsaPrivateKey && doc.title_enc) {
+      try { title = decryptRSA(doc.title_enc, rsaPrivateKey); } catch { title = 'Case Activity Update'; }
     }
-    if (privateKey && doc.message_enc) {
-      try { message = decrypt(doc.message_enc, privateKey); } catch { message = 'Your case status was updated.'; }
+    if (rsaPrivateKey && doc.message_enc) {
+      try { message = decryptRSA(doc.message_enc, rsaPrivateKey); } catch { message = 'Your case status was updated.'; }
     }
 
     return {

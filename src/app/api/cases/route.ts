@@ -2,7 +2,6 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { User } from '@/models/User';
-import { encrypt, RSAPublicKey } from '@/lib/crypto/rsa';
 import { generateHMAC } from '@/lib/crypto/hmac';
 import { appendEntry } from '@/lib/audit/log';
 import { requireRole } from '@/lib/auth/rbac';
@@ -11,8 +10,10 @@ import { requireRole } from '@/lib/auth/rbac';
  * POST /api/cases
  *
  * Creates a new case request.
- * - Receives pre-encrypted E2EE data (AES ciphertexts) from the client.
- * - Receives `accessKeys` containing the AES key encrypted for authorized users (Creator + Admins).
+ * - Receives pre-encrypted E2EE data (ECIES ciphertexts) from the client.
+ * - Receives `casePublicKey` — the per-case ECC public key used to encrypt all fields.
+ * - Receives `accessKeys` containing the case ECC private scalar ECIES-encrypted
+ *   for each authorized user (Creator + Admins).
  * - Attaches an HMAC fingerprint to the stored record (tamper detection).
  * - Returns the new case id on success.
  */
@@ -38,8 +39,9 @@ const postHandler = async function POST(req: Request) {
 
     // --- Validate request body ---
     const body = await req.json();
-    
-    // The client should send the data already encrypted
+
+    // The client sends all fields pre-encrypted with ECIES
+    const casePublicKey: string = body.casePublicKey;
     const title_enc: string = body.title_enc;
     const description_enc: string = body.description_enc;
     const opposingParty_enc: string = body.opposingParty_enc;
@@ -49,9 +51,9 @@ const postHandler = async function POST(req: Request) {
     const jurisdiction_enc: string = body.jurisdiction_enc;
     const accessKeys: { userId: string, encryptedCaseKey: string }[] = body.accessKeys;
 
-    if (!title_enc || !description_enc || !opposingParty_enc || !category_enc || !urgency_enc || !jurisdiction_enc || !accessKeys) {
+    if (!casePublicKey || !title_enc || !description_enc || !opposingParty_enc || !category_enc || !urgency_enc || !jurisdiction_enc || !accessKeys) {
       return NextResponse.json(
-        { success: false, error: 'Missing required encrypted fields or accessKeys' },
+        { success: false, error: 'Missing required encrypted fields, casePublicKey, or accessKeys' },
         { status: 400 },
       );
     }
@@ -102,6 +104,7 @@ const postHandler = async function POST(req: Request) {
     const newCase = new Case({
       caseId: `CASE-${Math.floor(1000 + Math.random() * 9000)}`,
       clientId: finalClientId,
+      casePublicKey,
       title_enc,
       description_enc,
       opposingParty_enc,

@@ -7,8 +7,7 @@ import { AdminCaseAssigner } from '@/components/dashboard/admin/AdminCaseAssigne
 import { AdminClientAssigner } from '@/components/dashboard/admin/AdminClientAssigner';
 import { AdminCaseStatusUpdater } from '@/components/dashboard/admin/AdminCaseStatusUpdater';
 import { RemoveLawyerButton } from '@/components/dashboard/admin/RemoveLawyerButton';
-import { decrypt } from '@/lib/crypto/rsa';
-import { importAESKey, decryptText } from '@/lib/crypto/textCrypto';
+import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import Link from 'next/link';
 import Script from 'next/script';
 
@@ -37,35 +36,36 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
   // Find Admin's copy of the AES key
   const adminAccess = caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId);
 
-  let privateKey: any = null;
-  if (user && user.publicKey && user.encryptedPrivateKey) {
-    const publicKey = JSON.parse(user.publicKey);
-    privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
-  }
+  const eccPrivateKeyHex = user?.encryptedPrivateKey;
 
-  const tryDecrypt = async (encryptedJsonStr: string | undefined, fallback: string) => {
+  const tryDecrypt = (encryptedJsonStr: string | undefined, fallback: string) => {
     if (!encryptedJsonStr) return `${fallback} (No JSON)`;
-    if (!adminAccess) return `${fallback} (No Admin Access)`;
-    if (!privateKey) return `${fallback} (No Private Key)`;
+    if (!adminAccess || !adminAccess.encryptedCaseKey) return `${fallback} (No Admin Access)`;
+    if (!eccPrivateKeyHex) return `${fallback} (No Private Key)`;
     try {
-      const aesKeyHex = decrypt(adminAccess.encryptedCaseKey, privateKey);
-      const aesKey = await importAESKey(aesKeyHex);
-      const payload = JSON.parse(encryptedJsonStr);
-      if (!payload.ciphertextHex || !payload.ivHex) return `${fallback} (Missing Payload Fields)`;
-      return await decryptText(payload.ciphertextHex, payload.ivHex, aesKey);
+      const accessKeyBundle: ECIESCiphertext = JSON.parse(adminAccess.encryptedCaseKey);
+      const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
+      if (!caseKeyResult.ok) return `${fallback} (Case scalar decrypt failed)`;
+      
+      const casePrivateKeyHex = caseKeyResult.plaintext;
+
+      const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
+      const result = decryptECIES(fieldBundle, casePrivateKeyHex);
+      
+      return result.ok ? result.plaintext : `${fallback} (Field decrypt failed)`;
     } catch (err: any) {
       console.error('Decryption error:', err);
       return `Error: ${err.message}`;
     }
   };
 
-  const title = await tryDecrypt(caseDoc.title_enc, 'Encrypted Title');
-  const description = await tryDecrypt(caseDoc.description_enc, 'Encrypted Description');
-  const category = await tryDecrypt(caseDoc.category_enc, 'Encrypted Category');
-  const urgency = await tryDecrypt(caseDoc.urgency_enc, 'Standard');
-  const jurisdiction = await tryDecrypt(caseDoc.jurisdiction_enc, 'Unknown Jurisdiction');
-  const opposingParty = await tryDecrypt(caseDoc.opposingParty_enc, 'Unknown');
-  const claimValue = await tryDecrypt(caseDoc.claimValue_enc, 'N/A');
+  const title = tryDecrypt(caseDoc.title_enc, 'Encrypted Title');
+  const description = tryDecrypt(caseDoc.description_enc, 'Encrypted Description');
+  const category = tryDecrypt(caseDoc.category_enc, 'Encrypted Category');
+  const urgency = tryDecrypt(caseDoc.urgency_enc, 'Standard');
+  const jurisdiction = tryDecrypt(caseDoc.jurisdiction_enc, 'Unknown Jurisdiction');
+  const opposingParty = tryDecrypt(caseDoc.opposingParty_enc, 'Unknown');
+  const claimValue = tryDecrypt(caseDoc.claimValue_enc, 'N/A');
 
   // Fetch names for currently assigned lawyers
   let assignedLawyers: any[] = [];
@@ -203,7 +203,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
       <Script
         id="inject-private-key"
         dangerouslySetInnerHTML={{
-          __html: `window.sessionPrivateKey = ${JSON.stringify(privateKey)};`
+          __html: `window.sessionPrivateKey = ${JSON.stringify(eccPrivateKeyHex)};`
         }}
       />
     </div>
