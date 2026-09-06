@@ -15,9 +15,7 @@
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
-import { encrypt, decrypt, type ECIESCiphertext } from '@/lib/crypto/ecc';
-import { signECDSA } from '@/lib/crypto/ecdsa';
-import { generateHMAC } from '@/lib/crypto/hmac';
+import { encryptMessagePayloadAction, decryptMessagesBatchAction } from '@/app/actions/messageCryptoActions';
 
 interface RawMessage {
   _id: string;
@@ -50,8 +48,6 @@ interface MessagesTabProps {
   senderPrivateKeyHex?: string;
 }
 
-/** Server secret proxy for client-side HMAC — in prod use a session-derived key. */
-const HMAC_KEY = 'client-integrity-key';
 const POLL_INTERVAL_MS = 5000;
 
 export function MessagesTab({
@@ -78,42 +74,32 @@ export function MessagesTab({
       const json = await res.json();
       if (!json.success) throw new Error(json.error);
 
-      const decrypted: DecryptedMessage[] = [];
-      for (const msg of json.data as RawMessage[]) {
-        try {
-          const bundle = JSON.parse(msg.ciphertext) as ECIESCiphertext;
-          const result = decrypt(bundle, casePrivateKeyHex);
-
-          if (!result.ok) {
-            // MAC_MISMATCH — show a tamper warning placeholder instead of skipping silently
-            decrypted.push({
-              id: msg._id,
-              senderId: msg.senderId,
-              text: '[⚠ Message integrity check failed — possible tampering]',
-              createdAt: new Date(msg.createdAt),
-              isMine: msg.senderId === currentUserId,
-              integrityOk: false,
-            });
-            continue;
-          }
-
-          decrypted.push({
-            id: msg._id,
-            senderId: msg.senderId,
-            text: result.plaintext,
-            createdAt: new Date(msg.createdAt),
-            isMine: msg.senderId === currentUserId,
-            integrityOk: true,
-          });
-        } catch {
-          // Skip completely unparseable messages (e.g., old AES-era records)
-        }
+      const rawMessages = json.data as RawMessage[];
+      if (rawMessages.length === 0) {
+        setMessages([]);
+        setLoading(false);
+        return;
       }
-      setMessages(decrypted);
+
+      // Map to batch format
+      const batch = rawMessages.map(m => ({
+        id: m._id,
+        ciphertext: m.ciphertext,
+        senderId: m.senderId,
+        createdAt: m.createdAt,
+      }));
+
+      const decryptRes = await decryptMessagesBatchAction(batch, casePrivateKeyHex, currentUserId);
+
+      if (!decryptRes.ok || !decryptRes.results) {
+        throw new Error(decryptRes.error || 'Batch decryption failed');
+      }
+
+      setMessages(decryptRes.results as any);
 
       // Scroll to bottom only when new messages arrive
-      if (decrypted.length !== lastMessageCountRef.current) {
-        lastMessageCountRef.current = decrypted.length;
+      if (decryptRes.results.length !== lastMessageCountRef.current) {
+        lastMessageCountRef.current = decryptRes.results.length;
         setTimeout(() => bottomRef.current?.scrollIntoView({ behavior: 'smooth' }), 50);
       }
     } catch (err: any) {
@@ -136,19 +122,11 @@ export function MessagesTab({
     setSending(true);
     setError('');
     try {
-      // Encrypt with ECIES to the case public key
-      const bundle: ECIESCiphertext = encrypt(text, casePublicKey);
-      const ciphertext = JSON.stringify(bundle);
+      // Offload ECIES encryption and ECDSA signing to the server to avoid browser crash
+      const encRes = await encryptMessagePayloadAction(text, casePublicKey, senderPrivateKeyHex);
+      if (!encRes.ok) throw new Error(encRes.error);
 
-      // ECDSA sign the ciphertext JSON string for non-repudiation
-      let signature = '{}';
-      if (senderPrivateKeyHex) {
-        const sig = signECDSA(ciphertext, senderPrivateKeyHex);
-        signature = JSON.stringify(sig);
-      }
-
-      // HMAC integrity tag over the ciphertext string
-      const integrityHash = generateHMAC(HMAC_KEY, ciphertext);
+      const { ciphertext, signature, integrityHash } = encRes;
 
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -254,13 +232,12 @@ export function MessagesTab({
                     className={`flex ${msg.isMine ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${
-                        !msg.integrityOk
+                      className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${!msg.integrityOk
                           ? 'bg-red-50 border border-red-200 text-red-700 rounded-br-sm'
                           : msg.isMine
-                          ? 'bg-slate-900 text-white rounded-br-sm'
-                          : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                      }`}
+                            ? 'bg-slate-900 text-white rounded-br-sm'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                        }`}
                     >
                       <p className="text-sm leading-relaxed break-words">{msg.text}</p>
                       <p className={`text-[10px] mt-1 ${msg.isMine && msg.integrityOk ? 'text-slate-400' : 'text-slate-500'} text-right`}>
