@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef } from 'react';
 
-export type TabId = 'overview' | 'personnel' | 'hearings' | 'notes' | 'exhibits' | 'messages';
+export type TabId = 'overview' | 'personnel' | 'hearings' | 'notes' | 'exhibits' | 'clientDocuments' | 'messages';
 
 interface Tab {
   id: TabId;
@@ -16,6 +16,7 @@ interface CaseTabsProps {
   hearings: React.ReactNode;
   notes: React.ReactNode;
   exhibits: React.ReactNode;
+  clientDocuments?: React.ReactNode;
   messages: React.ReactNode;
   /** The case MongoDB ID — used for unread-message tracking. */
   caseId: string;
@@ -80,6 +81,15 @@ const TABS: Tab[] = [
     ),
   },
   {
+    id: 'clientDocuments',
+    label: 'Client Uploads',
+    icon: (
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" width="16" height="16" aria-hidden>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    ),
+  },
+  {
     id: 'messages',
     label: 'Messages',
     icon: (
@@ -90,7 +100,7 @@ const TABS: Tab[] = [
   },
 ];
 
-export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messages, caseId }: CaseTabsProps) {
+export function CaseTabs({ overview, personnel, hearings, notes, exhibits, clientDocuments, messages, caseId }: CaseTabsProps) {
   const [activeTab, setActiveTab] = useState<TabId>('overview');
   const [hasUnread, setHasUnread] = useState(false);
   const activeTabRef = useRef<TabId>('overview');
@@ -154,7 +164,7 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
     <div>
       <div className="flex border-b border-border overflow-x-auto" role="tablist">
         {TABS.map((tab) => {
-          const propValue = { overview, personnel, hearings, notes, exhibits, messages }[tab.id];
+          const propValue = { overview, personnel, hearings, notes, exhibits, clientDocuments, messages }[tab.id];
           if (!propValue) return null;
 
           const isActive = activeTab === tab.id;
@@ -198,6 +208,7 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
         {activeTab === 'hearings' && hearings}
         {activeTab === 'notes' && notes}
         {activeTab === 'exhibits' && exhibits}
+        {activeTab === 'clientDocuments' && clientDocuments}
         {activeTab === 'messages' && messages}
       </div>
     </div>

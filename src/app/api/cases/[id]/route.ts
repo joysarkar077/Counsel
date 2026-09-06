@@ -17,10 +17,10 @@ import { verifyHMAC, generateHMAC } from '@/lib/crypto/hmac';
 const getHandler = async function GET(req: Request, { params }: { params: Promise<{ id: string }> }) {
   try {
     await dbConnect();
-    
+
     const userId = (req as any).userId;
     const { id } = await params;
-    
+
     const [user, caseDoc] = await Promise.all([User.findById(userId), Case.findById(id)]);
 
     if (!user) {
@@ -57,10 +57,34 @@ const getHandler = async function GET(req: Request, { params }: { params: Promis
       caseDoc.officers_enc || '',
       caseDoc.witnesses_enc || '',
       caseDoc.exhibits_enc || '',
+      caseDoc.clientDocuments_enc || '',
       caseDoc.caseUpdates_enc || ''
     ].join('|');
-    const isIntact = verifyHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload, caseDoc.hmac);
-    
+
+    // Legacy payload before clientDocuments_enc was added
+    const legacyHmacPayload = [
+      caseDoc.clientId,
+      caseDoc.title_enc,
+      caseDoc.description_enc,
+      caseDoc.category_enc,
+      caseDoc.urgency_enc,
+      caseDoc.jurisdiction_enc,
+      caseDoc.opposingParty_enc,
+      caseDoc.claimValue_enc || '',
+      caseDoc.hearingDates_enc || '',
+      caseDoc.jurors_enc || '',
+      caseDoc.da_enc || '',
+      caseDoc.judge_enc || '',
+      caseDoc.officers_enc || '',
+      caseDoc.witnesses_enc || '',
+      caseDoc.exhibits_enc || '',
+      caseDoc.caseUpdates_enc || ''
+    ].join('|');
+
+    const secret = process.env.SERVER_SECRET || 'dev-secret';
+    const isIntact = verifyHMAC(secret, hmacPayload, caseDoc.hmac) ||
+                     verifyHMAC(secret, legacyHmacPayload, caseDoc.hmac);
+
     if (!isIntact) {
       console.error(`TAMPER DETECTED: HMAC validation failed for case ${caseDoc.caseId}`);
       await appendEntry(userId, 'CASE_TAMPER_DETECTED', `Failed integrity check for case ${caseDoc.caseId}`);
@@ -84,7 +108,7 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
     const body = await req.json();
     const { id } = await params;
     const userId = (req as any).userId;
-    
+
     const caseDoc = await Case.findById(id);
     if (!caseDoc) {
       return NextResponse.json({ success: false, error: 'Case not found' }, { status: 404 });
@@ -95,7 +119,7 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
       'title_enc', 'description_enc', 'opposingParty_enc', 'claimValue_enc', 'category_enc',
       'urgency_enc', 'jurisdiction_enc', 'status', 'lawyerIds', 'accessKeys',
       'hearingDates_enc', 'jurors_enc', 'da_enc', 'judge_enc', 'officers_enc',
-      'witnesses_enc', 'exhibits_enc', 'caseUpdates_enc'
+      'witnesses_enc', 'exhibits_enc', 'clientDocuments_enc', 'caseUpdates_enc'
     ];
     for (const field of updatableFields) {
       if (body[field] !== undefined) {
@@ -122,6 +146,7 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
       caseDoc.officers_enc || '',
       caseDoc.witnesses_enc || '',
       caseDoc.exhibits_enc || '',
+      caseDoc.clientDocuments_enc || '',
       caseDoc.caseUpdates_enc || ''
     ].join('|');
     caseDoc.hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
@@ -144,7 +169,7 @@ const deleteHandler = async function DELETE(req: Request, { params }: { params: 
     await dbConnect();
     const { id } = await params;
     const userId = (req as any).userId;
-    
+
     const deletedCase = await Case.findByIdAndDelete(id);
 
     if (!deletedCase) {

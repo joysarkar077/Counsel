@@ -34,6 +34,7 @@ const CaseSchema = new Schema<ICase>({
   officers_enc: { type: String, required: false },
   witnesses_enc: { type: String, required: false },
   exhibits_enc: { type: String, required: false },
+  clientDocuments_enc: { type: String, required: false },
   caseUpdates_enc: { type: String, required: false },
   lawyerIds: { type: [String], default: [] },
   accessKeys: { type: [AccessKeySchema], default: [] },
