@@ -119,6 +119,15 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     parsedHearings = JSON.parse(hearingDates || '[]');
   } catch {}
 
+  const clientUserDoc = await User.findById(caseData.clientId).lean();
+  const clientName = clientUserDoc?.fullName || caseData.clientId;
+
+  const lawyerUserDocs = await User.find({ _id: { $in: caseData.lawyerIds } }).lean();
+  const lawyerNames = caseData.lawyerIds.map(id => {
+    const lawyer = lawyerUserDocs.find(u => u._id.toString() === id.toString());
+    return lawyer?.fullName || id;
+  });
+
   return (
     <div className="animate-fade-up">
       {/* Header */}
@@ -152,7 +161,9 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 caseId={caseData._id}
                 status={caseData.status}
                 clientId={caseData.clientId}
+                clientName={clientName}
                 lawyerIds={caseData.lawyerIds}
+                lawyerNames={lawyerNames}
                 createdAt={caseData.createdAt}
                 updatedAt={caseData.updatedAt}
                 title={title}
@@ -185,15 +196,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 </div>
               )
             }
-            notes={
-              <NotesTab
-                caseId={caseData._id}
-                casePrivateKeyHex={casePrivateKeyHex}
-                casePublicKey={caseData.casePublicKey}
-                initialUpdates={caseUpdates || '[]'}
-                readOnly={true}
-              />
-            }
+            notes={undefined}
             exhibits={
               <ExhibitsTab
                 caseId={caseData._id}

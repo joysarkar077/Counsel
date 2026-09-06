@@ -4,10 +4,12 @@ interface OverviewTabProps {
   caseId: string;
   status: CaseStatus;
   clientId: string;
+  clientName?: string;
   lawyerIds: string[];
+  lawyerNames?: string[];
   createdAt: string;
   updatedAt: string;
-  
+
   /**
    * Decrypted title. Will be populated once ECDSA session management
    * provides the private key (Task 6). Shows a placeholder until then.
@@ -86,7 +88,9 @@ export function OverviewTab({
   caseId,
   status,
   clientId,
+  clientName,
   lawyerIds,
+  lawyerNames,
   createdAt,
   updatedAt,
   category,
@@ -99,9 +103,11 @@ export function OverviewTab({
 }: OverviewTabProps) {
   const { label, classes } = STATUS_STYLES[status] || STATUS_STYLES.PENDING_REVIEW;
 
+  const displayLawyers = lawyerNames && lawyerNames.length > 0 ? lawyerNames : lawyerIds;
+
   return (
     <div className="flex flex-col gap-6">
-      
+
       {/* Routing & Meta grid */}
       <div className="rounded-xl border border-slate-200 bg-white px-6 shadow-sm">
         <MetaRow label="Case ID" value={<code className="text-xs text-blue-700 bg-blue-50 px-2 py-0.5 rounded">{caseId}</code>} />
@@ -113,13 +119,13 @@ export function OverviewTab({
             </span>
           }
         />
-        
-        <MetaRow label="Client ID" value={clientId} />
+
+        <MetaRow label="Client" value={clientName || clientId} />
         <MetaRow
           label="Assigned Lawyers"
           value={
-            lawyerIds.length > 0 ? (
-              <span>{lawyerIds.join(', ')}</span>
+            displayLawyers.length > 0 ? (
+              <span>{displayLawyers.join(', ')}</span>
             ) : (
               <span className="italic text-slate-400">Not yet assigned</span>
             )
@@ -136,7 +142,7 @@ export function OverviewTab({
             Case Details
           </h2>
         </div>
-        
+
         <div className="space-y-6">
           <div className="space-y-1">
             <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Title</label>
@@ -156,7 +162,7 @@ export function OverviewTab({
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Jurisdiction</label>
               {jurisdiction ? <p className="text-sm text-slate-900">{jurisdiction}</p> : <EncryptedPlaceholder label="Jurisdiction" />}
             </div>
-            
+
             <div className="space-y-1">
               <label className="text-xs font-bold text-slate-400 uppercase tracking-wider">Opposing Party</label>
               {opposingParty ? <p className="text-sm text-slate-900">{opposingParty}</p> : <EncryptedPlaceholder label="Party" />}
