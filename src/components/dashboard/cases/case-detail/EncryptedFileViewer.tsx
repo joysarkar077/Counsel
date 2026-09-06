@@ -65,21 +65,21 @@ export function EncryptedFileViewer({ fileUrl, fileKey, fileName }: EncryptedFil
 
   return (
     <>
-      <div className="flex flex-col gap-1">
-        <span className="text-xs font-medium text-slate-700 truncate max-w-[150px]" title={fileName}>
+      <div className="flex items-center justify-between gap-4">
+        <span className="text-sm font-medium text-slate-700 truncate max-w-[200px] sm:max-w-[300px]" title={fileName}>
           {fileName || 'Encrypted File'}
         </span>
         {error ? (
-          <span className="text-[10px] font-semibold text-red-500" title={error}>
+          <span className="text-xs font-semibold text-red-500" title={error}>
             {error.length > 40 ? 'Integrity error — tampered?' : error}
           </span>
         ) : (
-          <div className="flex items-center gap-3">
+          <div className="flex items-center gap-3 shrink-0">
             {canView && (
               <button
                 onClick={(e) => { e.preventDefault(); handleAction('view'); }}
                 disabled={isDecrypting}
-                className="text-[11px] font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors"
+                className="text-xs font-semibold text-indigo-600 hover:text-indigo-800 disabled:opacity-50 transition-colors"
               >
                 {isDecrypting && isViewing ? 'Opening...' : 'View'}
               </button>
@@ -87,7 +87,7 @@ export function EncryptedFileViewer({ fileUrl, fileKey, fileName }: EncryptedFil
             <button
               onClick={(e) => { e.preventDefault(); handleAction('download'); }}
               disabled={isDecrypting}
-              className="text-[11px] font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50 transition-colors"
+              className="text-xs font-semibold text-slate-500 hover:text-slate-800 disabled:opacity-50 transition-colors"
             >
               {isDecrypting && !isViewing ? 'Downloading...' : 'Download'}
             </button>
