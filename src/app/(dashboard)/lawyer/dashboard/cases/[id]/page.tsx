@@ -139,7 +139,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               caseId={id}
               lawyerId={userId}
               encryptedCaseKey={caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId)?.encryptedCaseKey || ''}
-              privateKey={{ d: eccPrivateKeyHex }}
+              privateKey={eccPrivateKeyHex}
             />
           </div>
         </div>
