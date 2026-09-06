@@ -276,8 +276,21 @@ export function decrypt(bundle: ECIESCiphertext, privateKey: string): DecryptRes
       return { ok: false, error: 'MAC_MISMATCH' };
     }
 
-    // crypto.timingSafeEqual prevents timing side-channel on MAC comparison
-    if (!crypto.timingSafeEqual(expectedBuf, actualBuf)) {
+    // crypto.timingSafeEqual prevents timing side-channel on MAC comparison.
+    // We provide a manual constant-time fallback for browser environments where
+    // the crypto polyfill lacks timingSafeEqual.
+    let macsMatch = false;
+    if (typeof crypto.timingSafeEqual === 'function') {
+      macsMatch = crypto.timingSafeEqual(expectedBuf, actualBuf);
+    } else {
+      let diff = 0;
+      for (let i = 0; i < expectedBuf.length; i++) {
+        diff |= expectedBuf[i] ^ actualBuf[i];
+      }
+      macsMatch = diff === 0;
+    }
+
+    if (!macsMatch) {
       return { ok: false, error: 'MAC_MISMATCH' };
     }
 

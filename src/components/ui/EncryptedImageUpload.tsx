@@ -22,7 +22,8 @@ export default function EncryptedImageUpload({ onUploadSuccess }: EncryptedImage
     },
     onClientUploadComplete: (res) => {
       if (res && res.length > 0) {
-        onUploadSuccess(res[0].url, currentKeyPayload.current);
+        const finalUrl = (res[0] as any).ufsUrl || res[0].url;
+        onUploadSuccess(finalUrl, currentKeyPayload.current);
       }
       setIsEncrypting(false);
       setProgress(0);

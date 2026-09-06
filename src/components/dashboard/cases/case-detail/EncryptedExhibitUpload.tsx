@@ -29,7 +29,9 @@ export default function EncryptedExhibitUpload({ onUploadSuccess }: EncryptedExh
     },
     onClientUploadComplete: (res) => {
       if (res && res.length > 0) {
-        onUploadSuccess(res[0].url, currentKeyPayload.current, currentFileName.current);
+        // use res[0].ufsUrl per UploadThing v7/v9 deprecation notice, fallback to url if missing
+        const finalUrl = (res[0] as any).ufsUrl || res[0].url;
+        onUploadSuccess(finalUrl, currentKeyPayload.current, currentFileName.current);
       }
       setIsEncrypting(false);
       setProgress(0);
