@@ -1,7 +1,8 @@
 import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
-import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
+import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '@/lib/crypto/ecc';
+import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
 import { appendEntry } from '@/lib/audit/log';
 
@@ -9,7 +10,7 @@ import { appendEntry } from '@/lib/audit/log';
  * Seed script to create the Super Admin account.
  * This should be called only once on initial setup.
  * POST /api/admin/seed-super-admin
- * 
+ *
  * Body: { username, email, password, seedSecret }
  * seedSecret must match SEED_SECRET in .env.local to prevent abuse.
  */
@@ -30,10 +31,15 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'Super Admin already exists. This endpoint is disabled.' }, { status: 409 });
     }
 
-    const { publicKey, privateKey } = generateKeyPair(1024);
-    const username_enc = encrypt(username, publicKey);
-    const email_enc = encrypt(email, publicKey);
-    const contact_enc = encrypt('', publicKey);
+    // 1. ECC keypair — used for ECIES data encryption (matches /api/auth/register)
+    const eccKeyPair = generateECCKeyPair();
+    const username_enc = JSON.stringify(encryptECIES(username, eccKeyPair.publicKey));
+    const email_enc = JSON.stringify(encryptECIES(email, eccKeyPair.publicKey));
+    const contact_enc = JSON.stringify(encryptECIES('', eccKeyPair.publicKey));
+
+    // 2. RSA keypair — stored separately for digital signatures only
+    const rsaKeyPair = generateRSAKeyPair(1024);
+
     const { hash: passwordHash, salt } = hashPassword(password);
 
     await User.create({
@@ -43,8 +49,10 @@ export async function POST(req: Request) {
       contact_enc,
       passwordHash,
       salt,
-      publicKey: JSON.stringify(publicKey),
-      encryptedPrivateKey: privateKey.d,
+      publicKey: eccKeyPair.publicKey,
+      encryptedPrivateKey: eccKeyPair.privateKey,
+      rsaPublicKey: JSON.stringify(rsaKeyPair.publicKey),
+      rsaPrivateKey: rsaKeyPair.privateKey.d,
       role: 'super_admin',
       isActive: true,
     });

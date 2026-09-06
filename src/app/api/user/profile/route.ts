@@ -1,14 +1,17 @@
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { NextResponse } from 'next/server';
-import { encrypt, decrypt, RSAPrivateKey, generateKeyPair } from '@/lib/crypto/rsa';
+import { decryptOrFallback, encrypt as encryptECIES, generateKeyPair as generateECCKeyPair, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
-function tryDecryptField(encVal: string | undefined, privateKey: RSAPrivateKey | null, fallback: string = ''): string {
-  if (!encVal || !privateKey) return fallback;
+// encryptedPrivateKey is the raw ECC scalar hex; publicKey is the 'x,y' ECC hex.
+// Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+function tryDecryptField(encJson: string | undefined, eccPrivKey: string | undefined, fallback: string = ''): string {
+  if (!encJson || !eccPrivKey) return fallback;
   try {
-    return decrypt(encVal, privateKey);
+    const bundle: ECIESCiphertext = JSON.parse(encJson);
+    return decryptOrFallback(bundle, eccPrivKey, fallback);
   } catch {
-    return fallback || encVal;
+    return fallback || encJson;
   }
 }
 
@@ -26,22 +29,14 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    let privateKey: RSAPrivateKey | null = null;
-    if (user.publicKey && user.encryptedPrivateKey) {
-      try {
-        const pub = typeof user.publicKey === 'string' ? JSON.parse(user.publicKey) : user.publicKey;
-        privateKey = { d: user.encryptedPrivateKey, n: pub.n };
-      } catch (err) {
-        console.error('Failed to parse RSA key for user profile GET:', err);
-      }
-    }
+    const eccPrivKey = user.encryptedPrivateKey;
 
-    const name = tryDecryptField(user.username_enc, privateKey, 'User');
-    const email = tryDecryptField(user.email_enc, privateKey, '');
-    const contact = tryDecryptField(user.contact_enc, privateKey, '');
-    const address = tryDecryptField(user.address_enc, privateKey, '');
-    const bloodGroup = tryDecryptField(user.bloodGroup_enc, privateKey, '');
-    const avatarKey = tryDecryptField(user.avatarKey_enc, privateKey, '');
+    const name = tryDecryptField(user.username_enc, eccPrivKey, 'User');
+    const email = tryDecryptField(user.email_enc, eccPrivKey, '');
+    const contact = tryDecryptField(user.contact_enc, eccPrivKey, '');
+    const address = tryDecryptField(user.address_enc, eccPrivKey, '');
+    const bloodGroup = tryDecryptField(user.bloodGroup_enc, eccPrivKey, '');
+    const avatarKey = tryDecryptField(user.avatarKey_enc, eccPrivKey, '');
 
     return NextResponse.json({
       success: true,
@@ -57,7 +52,7 @@ export async function GET(req: Request) {
         position: user.position || user.role,
         role: user.role,
         isActive: user.isActive,
-        publicKey: typeof user.publicKey === 'string' ? user.publicKey : JSON.stringify(user.publicKey),
+        publicKey: user.publicKey,
         createdAt: user.createdAt,
       },
     }, { status: 200 });
@@ -84,38 +79,39 @@ export async function PUT(req: Request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    // Ensure user has valid RSA keypair
-    let publicKeyObj: any = null;
-    if (user.publicKey) {
-      try {
-        publicKeyObj = typeof user.publicKey === 'string' ? JSON.parse(user.publicKey) : user.publicKey;
-      } catch (err) {
-        console.error('Parsing existing user public key failed:', err);
+    // publicKey is the ECC 'x,y' hex — used directly as the recipient key for encryptECIES.
+    let eccPublicKey = user.publicKey;
+
+    // Legacy users from before the ECC migration might have an RSA JSON string in `publicKey`.
+    if (!eccPublicKey || eccPublicKey.startsWith('{')) {
+      const eccKeyPair = generateECCKeyPair();
+      eccPublicKey = eccKeyPair.publicKey;
+
+      // Move legacy RSA keys to their correct fields to preserve signature verification
+      if (user.publicKey && user.publicKey.startsWith('{')) {
+        user.rsaPublicKey = user.publicKey;
+        user.rsaPrivateKey = user.encryptedPrivateKey;
       }
+
+      user.publicKey = eccPublicKey;
+      user.encryptedPrivateKey = eccKeyPair.privateKey;
     }
 
-    if (!publicKeyObj || !publicKeyObj.e || !publicKeyObj.n) {
-      const keys = generateKeyPair(1024);
-      publicKeyObj = keys.publicKey;
-      user.publicKey = JSON.stringify(keys.publicKey);
-      user.encryptedPrivateKey = keys.privateKey.d;
-    }
-
-    // Encrypt fields with public key
+    // Encrypt updated fields with the user's ECC public key (matching the registration scheme)
     if (typeof name === 'string' && name.trim()) {
-      user.username_enc = encrypt(name.trim(), publicKeyObj);
+      user.username_enc = JSON.stringify(encryptECIES(name.trim(), eccPublicKey));
     }
     if (typeof contact === 'string' && contact.trim()) {
-      user.contact_enc = encrypt(contact.trim(), publicKeyObj);
+      user.contact_enc = JSON.stringify(encryptECIES(contact.trim(), eccPublicKey));
     }
     if (typeof address === 'string') {
-      user.address_enc = encrypt(address.trim(), publicKeyObj);
+      user.address_enc = JSON.stringify(encryptECIES(address.trim(), eccPublicKey));
     }
     if (typeof bloodGroup === 'string') {
-      user.bloodGroup_enc = encrypt(bloodGroup.trim(), publicKeyObj);
+      user.bloodGroup_enc = JSON.stringify(encryptECIES(bloodGroup.trim(), eccPublicKey));
     }
     if (typeof avatarKey === 'string' && avatarKey.trim()) {
-      user.avatarKey_enc = encrypt(avatarKey.trim(), publicKeyObj);
+      user.avatarKey_enc = JSON.stringify(encryptECIES(avatarKey.trim(), eccPublicKey));
     }
     if (typeof avatarUrl === 'string') {
       user.avatarUrl = avatarUrl;

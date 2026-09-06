@@ -2,7 +2,7 @@ import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
-import { decrypt } from '@/lib/crypto/rsa';
+import { decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import { AdminUsersTable } from '@/components/dashboard/admin/AdminUsersTable';
 import type { AdminUserRow } from '@/components/dashboard/admin/AdminUsersTable';
 
@@ -29,20 +29,15 @@ export default async function AdminUsersPage() {
     .lean();
 
   const users: AdminUserRow[] = rawUsers.map(u => {
-    let userPrivateKey: { d: string; n: string } | null = null;
-    if (u.publicKey && u.encryptedPrivateKey) {
-      try {
-        const pub = JSON.parse(u.publicKey);
-        userPrivateKey = { d: u.encryptedPrivateKey, n: pub.n };
-      } catch {
-        // ignore
-      }
-    }
+    // encryptedPrivateKey is the raw ECC scalar hex for each user.
+    // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+    const eccPrivKey = u.encryptedPrivateKey;
 
-    const tryDecryptField = (encHex: string | undefined, fallback: string): string => {
-      if (!encHex || !userPrivateKey) return fallback;
+    const tryDecryptField = (encJson: string | undefined, fallback: string): string => {
+      if (!encJson || !eccPrivKey) return fallback;
       try {
-        return decrypt(encHex, userPrivateKey);
+        const bundle: ECIESCiphertext = JSON.parse(encJson);
+        return decryptOrFallback(bundle, eccPrivKey, fallback);
       } catch {
         return fallback;
       }

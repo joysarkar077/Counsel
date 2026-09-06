@@ -3,23 +3,26 @@ import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { requireRole } from '@/lib/auth/rbac';
-import { decrypt } from '@/lib/crypto/rsa';
+import { decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
 /**
  * GET /api/admin/users
  *
  * Returns all clients and lawyers with their decrypted PII (email, contact).
- * Decryption is done server-side using the requesting admin's RSA private key.
- * This prevents any private key from leaking to the browser.
+ * Decryption is done server-side using each user's own ECC private key
+ * (stored as a plain hex scalar in encryptedPrivateKey).
  */
 const getHandler = async function GET(req: Request) {
   try {
     await dbConnect();
 
-    const tryDecryptField = (encHex: string | undefined, userPrivateKey: {d: string, n: string} | null, fallback: string): string => {
-      if (!encHex || !userPrivateKey) return fallback;
+    // encryptedPrivateKey is the raw ECC scalar hex for each user.
+    // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+    const tryDecryptField = (encJson: string | undefined, eccPrivKey: string | undefined, fallback: string): string => {
+      if (!encJson || !eccPrivKey) return fallback;
       try {
-        return decrypt(encHex, userPrivateKey);
+        const bundle: ECIESCiphertext = JSON.parse(encJson);
+        return decryptOrFallback(bundle, eccPrivKey, fallback);
       } catch {
         return fallback;
       }
@@ -31,23 +34,15 @@ const getHandler = async function GET(req: Request) {
       .lean();
 
     const userData = users.map(user => {
-      let userPrivateKey: { d: string; n: string } | null = null;
-      if (user.publicKey && user.encryptedPrivateKey) {
-        try {
-          const pub = JSON.parse(user.publicKey);
-          userPrivateKey = { d: user.encryptedPrivateKey, n: pub.n };
-        } catch {
-          // ignore
-        }
-      }
+      const eccPrivKey = user.encryptedPrivateKey;
 
       return {
         id: user._id.toString(),
         name: user.fullName || `User ${user._id.toString().slice(-4)}`,
         role: user.role,
         publicKey: user.publicKey,
-        email: tryDecryptField(user.email_enc, userPrivateKey, ''),
-        contact: tryDecryptField(user.contact_enc, userPrivateKey, ''),
+        email: tryDecryptField(user.email_enc, eccPrivKey, ''),
+        contact: tryDecryptField(user.contact_enc, eccPrivKey, ''),
         avatarUrl: user.avatarUrl ?? null,
         isActive: user.isActive,
         position: user.position ?? null,

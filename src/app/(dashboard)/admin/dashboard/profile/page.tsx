@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
-import { decrypt } from '@/lib/crypto/rsa';
+import { decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import EncryptedImage from '@/components/ui/EncryptedImage';
 
 export default async function AdminProfilePage() {
@@ -28,22 +28,17 @@ export default async function AdminProfilePage() {
     );
   }
 
-  let privateKey: any = null;
-  if (user.publicKey && user.encryptedPrivateKey) {
-    try {
-      const pub = JSON.parse(user.publicKey);
-      privateKey = { d: user.encryptedPrivateKey, n: pub.n };
-    } catch (err) {
-      console.error('Failed to parse RSA key on Admin Profile page:', err);
-    }
-  }
+  // encryptedPrivateKey is the raw ECC scalar hex.
+  // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+  const eccPrivKey = user.encryptedPrivateKey;
 
-  const tryDecrypt = (encVal: string | undefined, fallback: string): string => {
-    if (!encVal || !privateKey) return fallback;
+  const tryDecrypt = (encJson: string | undefined, fallback: string): string => {
+    if (!encJson || !eccPrivKey) return fallback;
     try {
-      return decrypt(encVal, privateKey);
+      const bundle: ECIESCiphertext = JSON.parse(encJson);
+      return decryptOrFallback(bundle, eccPrivKey, fallback);
     } catch {
-      return fallback || encVal;
+      return fallback;
     }
   };
 

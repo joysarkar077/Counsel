@@ -5,7 +5,6 @@ import { User } from '@/models/User';
 import { Case } from '@/models/Case';
 import { Notification } from '@/models/Notification';
 import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
-import { decrypt as decryptRSA } from '@/lib/crypto/rsa';
 import { ClientNotifications, ClientNotificationItem } from '@/components/dashboard/client/ClientNotifications';
 import EncryptedImage from '@/components/ui/EncryptedImage';
 
@@ -86,17 +85,6 @@ export default async function ClientDashboardPage() {
   const bloodGroup = tryDecryptProfileField(userDoc.bloodGroup_enc, 'Not specified');
   const avatarKey = tryDecryptProfileField(userDoc.avatarKey_enc, '');
 
-  // Parse RSA private key if available for decrypting encrypted user profile & notifications
-  let rsaPrivateKey: any = null;
-  if (userDoc.rsaPublicKey && userDoc.rsaPrivateKey) {
-    try {
-      const pub = JSON.parse(userDoc.rsaPublicKey);
-      rsaPrivateKey = { d: userDoc.rsaPrivateKey, n: pub.n };
-    } catch (err) {
-      console.error('Failed to parse RSA key:', err);
-    }
-  }
-
   // Process live cases from DB
   const cases = caseDocs.slice(0, 3).map((doc: any) => ({
     id: doc._id.toString(),
@@ -108,21 +96,15 @@ export default async function ClientDashboardPage() {
     createdAt: doc.createdAt ? new Date(doc.createdAt).toLocaleDateString() : 'Recent',
   }));
 
-  // Process live notifications from DB
+  // Process live notifications from DB — notification fields are ECIES bundles keyed to user's ECC key
   const notifications: ClientNotificationItem[] = notificationDocs.map((doc: any) => {
-    let title = 'Notification';
-    let message = '';
-    if (rsaPrivateKey && doc.title_enc) {
-      try { title = decryptRSA(doc.title_enc, rsaPrivateKey); } catch { title = 'Case Activity Update'; }
-    }
-    if (rsaPrivateKey && doc.message_enc) {
-      try { message = decryptRSA(doc.message_enc, rsaPrivateKey); } catch { message = 'Your case status was updated.'; }
-    }
+    const title = tryDecryptProfileField(doc.title_enc, 'Case Activity Update');
+    const message = tryDecryptProfileField(doc.message_enc, 'Your case status was updated.');
 
     return {
       id: doc._id.toString(),
-      title: doc.title_enc ? title : 'Notification',
-      message: doc.message_enc ? message : 'System update',
+      title,
+      message,
       category: doc.category || 'system',
       read: doc.read || false,
       actionUrl: doc.actionUrl_enc ? '/client/dashboard/cases' : undefined,

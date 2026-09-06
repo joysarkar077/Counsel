@@ -2,13 +2,14 @@ import { NextResponse } from 'next/server';
 import { cookies } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
-import { generateKeyPair } from '@/lib/crypto/rsa';
+import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
+import { generateKeyPair as generateECCKeyPair } from '@/lib/crypto/ecc';
 import { appendEntry } from '@/lib/audit/log';
 
 export async function POST(req: Request) {
   try {
     await dbConnect();
-    
+
     const cookieStore = await cookies();
     const sessionToken = cookieStore.get('session_token')?.value;
 
@@ -30,17 +31,19 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: 'User not found' }, { status: 404 });
     }
 
-    // Generate new RSA keys (Identity / Wrapping)
-    const { publicKey, privateKey } = generateKeyPair(1024);
+    // Generate new ECC keys (Identity / Data Encryption)
+    const eccKeys = generateECCKeyPair();
 
-    // Sabid's ECC key generation will go here later:
-    // const eccKeys = generateEccKeyPair();
-    
+    // Generate new RSA keys (Digital Signatures)
+    const rsaKeys = generateRSAKeyPair(1024);
+
     // In a real scenario, rotating a key means re-encrypting PII and stored keys.
     // For this prototype, we're just storing the new generated keys.
-    user.publicKey = JSON.stringify(publicKey);
-    user.encryptedPrivateKey = privateKey.d;
-    
+    user.publicKey = eccKeys.publicKey;
+    user.encryptedPrivateKey = eccKeys.privateKey;
+    user.rsaPublicKey = JSON.stringify(rsaKeys.publicKey);
+    user.rsaPrivateKey = rsaKeys.privateKey.d;
+
     await user.save();
 
     await appendEntry(user.id, 'KEY_ROTATION', 'User rotated cryptographic keys');

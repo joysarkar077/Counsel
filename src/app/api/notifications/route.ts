@@ -3,7 +3,7 @@ import { Notification } from '@/models/Notification';
 import { User } from '@/models/User';
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
-import { decrypt, RSAPrivateKey } from '@/lib/crypto/rsa';
+import { decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
 export async function GET(req: Request) {
   try {
@@ -20,36 +20,24 @@ export async function GET(req: Request) {
       Notification.find({ userId }).sort({ createdAt: -1 }).lean()
     ]);
 
-    let privateKey: RSAPrivateKey | null = null;
-    if (user && user.publicKey && user.encryptedPrivateKey) {
+    // encryptedPrivateKey is the raw ECC scalar hex.
+    // Notification fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+    const eccPrivKey = user?.encryptedPrivateKey;
+
+    const tryDecrypt = (encJson: string | undefined, fallback: string): string => {
+      if (!encJson || !eccPrivKey) return fallback;
       try {
-        const pub = JSON.parse(user.publicKey);
-        privateKey = { d: user.encryptedPrivateKey, n: pub.n };
-      } catch (err) {
-        console.error('Failed to parse RSA key for notifications:', err);
+        const bundle: ECIESCiphertext = JSON.parse(encJson);
+        return decryptOrFallback(bundle, eccPrivKey, fallback);
+      } catch {
+        return fallback;
       }
-    }
+    };
 
     const data = notifications.map((n: any) => {
-      let title = 'Notification';
-      let message = '';
-      let actionUrl: string | undefined = undefined;
-
-      if (privateKey && n.title_enc) {
-        try { title = decrypt(n.title_enc, privateKey); } catch { title = n.title_enc; }
-      } else if (n.title_enc) {
-        title = n.title_enc;
-      }
-
-      if (privateKey && n.message_enc) {
-        try { message = decrypt(n.message_enc, privateKey); } catch { message = n.message_enc; }
-      } else if (n.message_enc) {
-        message = n.message_enc;
-      }
-
-      if (privateKey && n.actionUrl_enc) {
-        try { actionUrl = decrypt(n.actionUrl_enc, privateKey); } catch { actionUrl = n.actionUrl_enc; }
-      }
+      const title = tryDecrypt(n.title_enc, 'Notification');
+      const message = tryDecrypt(n.message_enc, '');
+      const actionUrl = n.actionUrl_enc ? tryDecrypt(n.actionUrl_enc, '') || undefined : undefined;
 
       return {
         id: n._id.toString(),
