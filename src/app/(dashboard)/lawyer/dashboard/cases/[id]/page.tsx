@@ -6,6 +6,7 @@ import { Case } from '@/models/Case';
 import { User } from '@/models/User';
 import { decrypt as decryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import { CaseTabs } from '@/components/dashboard/cases/case-detail/case-tabs';
+import { ClientDocumentsTab } from '@/components/dashboard/cases/case-detail/client-documents-tab';
 import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-tab';
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
 import { NotesTab } from '@/components/dashboard/cases/case-detail/notes-tab';
@@ -97,6 +98,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
   const witnesses = tryDecrypt(caseDoc.witnesses_enc, '[]');
   const exhibits = tryDecrypt(caseDoc.exhibits_enc, '[]');
   const caseUpdates = tryDecrypt(caseDoc.caseUpdates_enc, '[]');
+  const clientDocuments = tryDecrypt(caseDoc.clientDocuments_enc, '[]');
 
   // Fetch names for client and lawyers
   let clientName = caseDoc.clientId ? caseDoc.clientId.toString() : 'Unknown';
@@ -188,7 +190,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               casePrivateKeyHex={casePrivateKeyHex}
               casePublicKey={casePublicKey}
               currentUserId={userId}
-              senderPrivateKeyHex={eccPrivateKeyHex}
+
             />
           }
           personnel={
@@ -209,6 +211,16 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               casePrivateKeyHex={casePrivateKeyHex}
               casePublicKey={casePublicKey}
               initialData={exhibits || '[]'}
+            />
+          }
+          clientDocuments={
+            <ClientDocumentsTab
+              key="client-documents"
+              caseId={caseDoc._id.toString()}
+              casePrivateKeyHex={casePrivateKeyHex}
+              casePublicKey={casePublicKey}
+              initialData={clientDocuments || '[]'}
+              readOnly={true}
             />
           }
         />

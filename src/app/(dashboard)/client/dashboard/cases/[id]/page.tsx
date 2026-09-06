@@ -6,6 +6,7 @@ import { OverviewTab } from '@/components/dashboard/cases/case-detail/overview-t
 import { HearingsTab } from '@/components/dashboard/cases/case-detail/hearings-tab';
 import { NotesTab } from '@/components/dashboard/cases/case-detail/notes-tab';
 import { ExhibitsTab } from '@/components/dashboard/cases/case-detail/exhibits-tab';
+import { ClientDocumentsTab } from '@/components/dashboard/cases/case-detail/client-documents-tab';
 import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-tab';
 import type { CaseStatus } from '@/types/case';
 import dbConnect from '@/lib/db/mongoose';
@@ -40,6 +41,7 @@ async function fetchCase(id: string, cookieHeader: string) {
     claimValue_enc: string;
     hearingDates_enc?: string;
     exhibits_enc?: string;
+    clientDocuments_enc?: string;
     caseUpdates_enc?: string;
     accessKeys: any[];
     lawyerIds: string[];
@@ -112,6 +114,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const claimValue = tryDecrypt(caseData.claimValue_enc, undefined);
   const hearingDates = tryDecrypt(caseData.hearingDates_enc, '[]');
   const exhibits = tryDecrypt(caseData.exhibits_enc, '[]');
+  const clientDocuments = tryDecrypt(caseData.clientDocuments_enc, '[]');
   const caseUpdates = tryDecrypt(caseData.caseUpdates_enc, '[]');
 
   let parsedHearings: any[] = [];
@@ -206,13 +209,22 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
                 readOnly={true}
               />
             }
+            clientDocuments={
+              <ClientDocumentsTab
+                key="client-documents"
+                caseId={caseData._id.toString()}
+                casePrivateKeyHex={casePrivateKeyHex}
+                casePublicKey={caseData.casePublicKey}
+                initialData={clientDocuments || '[]'}
+                readOnly={false}
+              />
+            }
             messages={
               <MessagesTab
                 caseId={caseData._id}
                 casePrivateKeyHex={casePrivateKeyHex}
                 casePublicKey={caseData.casePublicKey}
                 currentUserId={userId}
-                senderPrivateKeyHex={eccPrivateKeyHex}
               />
             }
           />

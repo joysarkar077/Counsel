@@ -7,11 +7,8 @@
  * - Outbound: encrypt(text, casePublicKey) → ephemeral keypair per message
  * - Inbound:  decrypt(bundle, casePrivateKeyHex) → MAC verified before plaintext
  *
- * Integrity: Each message MAC is verified on receipt; tampered messages are
- * silently dropped (and flagged in the UI) rather than displayed.
- *
- * Non-repudiation: Messages are ECDSA-signed with the sender's ECC private key
- * and the signature is stored server-side via the `signature` field.
+ * Integrity: Each message HMAC is verified on receipt via the server-side
+ * HMAC check. Tampered messages are flagged in the UI rather than displayed.
  */
 
 import { useState, useEffect, useRef, useCallback } from 'react';
@@ -22,8 +19,7 @@ interface RawMessage {
   caseId: string;
   senderId: string;
   ciphertext: string; // JSON-serialised ECIESCiphertext bundle
-  signature: string;  // ECDSA { r, s } JSON
-  integrityHash: string; // HMAC-SHA256 over ciphertext field
+  integrityHash: string; // HMAC-SHA256 over the ciphertext field
   createdAt: string;
 }
 
@@ -44,8 +40,6 @@ interface MessagesTabProps {
   casePublicKey: string;
   /** The current user's MongoDB ObjectId string. */
   currentUserId: string;
-  /** The current user's ECC private key scalar (for ECDSA signing outbound messages). */
-  senderPrivateKeyHex?: string;
 }
 
 const POLL_INTERVAL_MS = 5000;
@@ -55,7 +49,6 @@ export function MessagesTab({
   casePrivateKeyHex,
   casePublicKey,
   currentUserId,
-  senderPrivateKeyHex,
 }: MessagesTabProps) {
   const [messages, setMessages] = useState<DecryptedMessage[]>([]);
   const [input, setInput] = useState('');
@@ -122,11 +115,10 @@ export function MessagesTab({
     setSending(true);
     setError('');
     try {
-      // Offload ECIES encryption and ECDSA signing to the server to avoid browser crash
-      const encRes = await encryptMessagePayloadAction(text, casePublicKey, senderPrivateKeyHex);
+      const encRes = await encryptMessagePayloadAction(text, casePublicKey);
       if (!encRes.ok) throw new Error(encRes.error);
 
-      const { ciphertext, signature, integrityHash } = encRes;
+      const { ciphertext, integrityHash } = encRes;
 
       const res = await fetch('/api/messages', {
         method: 'POST',
@@ -134,7 +126,7 @@ export function MessagesTab({
           'Content-Type': 'application/json',
           'x-user-id': currentUserId,
         },
-        body: JSON.stringify({ caseId, ciphertext, signature, integrityHash }),
+        body: JSON.stringify({ caseId, ciphertext, integrityHash }),
       });
       const json = await res.json();
       if (!json.success) throw new Error(json.error);

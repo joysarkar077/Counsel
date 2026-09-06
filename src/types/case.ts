@@ -62,6 +62,8 @@ export interface ICase extends Document {
   witnesses_enc?: string;
   /** JSON-stringified and encrypted array of exhibits */
   exhibits_enc?: string;
+  /** JSON-stringified and encrypted array of client documents */
+  clientDocuments_enc?: string;
   /** JSON-stringified and encrypted case updates/notes */
   caseUpdates_enc?: string;
   /** Comma-separated list of lawyer ObjectIds assigned to this case */

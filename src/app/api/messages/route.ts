@@ -52,7 +52,7 @@ export async function POST(req: Request) {
     }
 
     const body = await req.json();
-    const { caseId, ciphertext, signature, integrityHash } = body;
+    const { caseId, ciphertext, integrityHash } = body;
 
     if (!caseId || !ciphertext) {
       return NextResponse.json(
@@ -65,7 +65,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ success: false, error: 'Forbidden' }, { status: 403 });
     }
 
-    // --- Integrity verification (Req #2) ---
+    // --- Integrity verification ---
     // Verify the HMAC before persisting. Messages with invalid MACs are rejected.
     if (integrityHash) {
       const isIntact = verifyHMAC(HMAC_KEY, ciphertext, integrityHash);
@@ -80,8 +80,7 @@ export async function POST(req: Request) {
     const newMessage = await Message.create({
       caseId,
       senderId: userId,
-      ciphertext, // JSON-serialised ECIESCiphertext bundle — encrypted client-side
-      signature: signature || '{}', // ECDSA { r, s } JSON from the sender
+      ciphertext,
       integrityHash: integrityHash || '',
     });
 
