@@ -1,13 +1,13 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { decrypt as decryptECIES, encrypt as encryptECIES, type ECIESCiphertext } from '@/lib/crypto/ecc';
+import { reencryptCaseKeyAction } from '@/app/actions/reencryptCaseKey';
 
 interface AdminCaseAssignerProps {
   caseId: string;
   adminId: string;
   /** JSON-serialised ECIESCiphertext bundle containing the case ECC private scalar */
-  encryptedCaseKey: string; 
+  encryptedCaseKey: string;
 }
 
 export function AdminCaseAssigner({ caseId, adminId, encryptedCaseKey }: AdminCaseAssignerProps) {
@@ -36,31 +36,29 @@ export function AdminCaseAssigner({ caseId, adminId, encryptedCaseKey }: AdminCa
       // 1. Fetch Lawyer's public key (ECC secp256k1 public key)
       const pubKeyRes = await fetch(`/api/user/${lawyerId}/public-key`);
       const pubKeyJson = await pubKeyRes.json();
-      
+
       if (!pubKeyRes.ok || !pubKeyJson.success) {
         throw new Error(pubKeyJson.error || 'Failed to fetch lawyer public key');
       }
 
-      // 2. Fetch Admin's private key
-      // For this prototype, we'll fetch it from the session memory (populated during login).
-      // In a real Zero-Trust app, the Admin's private key is decrypted locally using a password.
+      // 2. Fetch Admin's private key from session memory
       const adminPrivateKeyHex = (window as any).sessionPrivateKey;
       if (!adminPrivateKeyHex) {
         throw new Error('Admin private key not found in session memory. Please re-login.');
       }
 
-      // 3. Decrypt the case scalar using Admin's private key (ECIES)
-      const bundle: ECIESCiphertext = JSON.parse(encryptedCaseKey);
-      const decryptResult = decryptECIES(bundle, adminPrivateKeyHex);
-      if (!decryptResult.ok) {
-        throw new Error('Failed to decrypt case key. You may not be authorized.');
+      // 3 & 4. Decrypt the case scalar using Admin's private key, then re-encrypt
+      //        to the Lawyer's public key. Both run server-side (ecc.ts needs Node.js crypto).
+      const lawyerPubKeyHex = pubKeyJson.data.publicKey;
+      const reencryptResult = await reencryptCaseKeyAction(
+        encryptedCaseKey,
+        adminPrivateKeyHex,
+        lawyerPubKeyHex,
+      );
+      if (!reencryptResult.ok) {
+        throw new Error(reencryptResult.error);
       }
-      const casePrivateKeyHex = decryptResult.plaintext;
-
-      // 4. Encrypt the case scalar using Lawyer's public key (ECIES)
-      const lawyerPubKeyHex = pubKeyJson.data.publicKey; // This should be the ECC hex string
-      const newBundle = encryptECIES(casePrivateKeyHex, lawyerPubKeyHex);
-      const newEncryptedCaseKey = JSON.stringify(newBundle);
+      const newEncryptedCaseKey = reencryptResult.encryptedCaseKey;
 
       // 5. Submit assignment
       const assignRes = await fetch(`/api/cases/${caseId}/assign`, {

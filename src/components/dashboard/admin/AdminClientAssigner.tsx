@@ -1,12 +1,12 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { decrypt, encrypt } from '@/lib/crypto/rsa';
+import { reencryptCaseKeyAction } from '@/app/actions/reencryptCaseKey';
 
 interface AdminClientAssignerProps {
   caseId: string;
   adminId: string;
-  encryptedCaseKey: string; // The admin's copy of the AES key
+  encryptedCaseKey: string; // The admin's copy of the encrypted case key
 }
 
 export function AdminClientAssigner({ caseId, adminId, encryptedCaseKey }: AdminClientAssignerProps) {
@@ -44,17 +44,17 @@ export function AdminClientAssigner({ caseId, adminId, encryptedCaseKey }: Admin
         throw new Error('Admin private key not found in session memory. Please re-login.');
       }
 
-      // 3. Decrypt the AES key using Admin's private key
-      let aesKeyHex: string;
-      try {
-        aesKeyHex = decrypt(encryptedCaseKey, adminPrivateKey);
-      } catch (err) {
-        throw new Error('Failed to decrypt the case key using your credentials.');
+      // 3 & 4. Decrypt the case scalar using Admin's private key, then re-encrypt
+      //        to Client's public key. Both run server-side (ecc.ts needs Node.js crypto).
+      const reencryptResult = await reencryptCaseKeyAction(
+        encryptedCaseKey,
+        adminPrivateKey,
+        client.publicKey,
+      );
+      if (!reencryptResult.ok) {
+        throw new Error(reencryptResult.error);
       }
-
-      // 4. Encrypt the AES key using Client's public key
-      const clientPubKey = JSON.parse(client.publicKey);
-      const newEncryptedCaseKey = encrypt(aesKeyHex, clientPubKey);
+      const newEncryptedCaseKey = reencryptResult.encryptedCaseKey;
 
       // 5. Submit assignment
       const assignRes = await fetch(`/api/cases/${caseId}/client`, {

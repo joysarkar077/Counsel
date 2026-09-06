@@ -152,9 +152,11 @@ export function CaseTabs({ overview, personnel, hearings, notes, exhibits, messa
 
   return (
     <div>
-      {/* Tab bar */}
       <div className="flex border-b border-border overflow-x-auto" role="tablist">
         {TABS.map((tab) => {
+          const propValue = { overview, personnel, hearings, notes, exhibits, messages }[tab.id];
+          if (!propValue) return null;
+
           const isActive = activeTab === tab.id;
           const showDot = tab.id === 'messages' && hasUnread && !isActive;
           return (

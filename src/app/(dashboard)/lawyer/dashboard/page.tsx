@@ -59,8 +59,8 @@ export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
   const eccPrivateKeyHex = user?.encryptedPrivateKey;
 
   const tryDecrypt = (
-    encryptedJsonStr: string | undefined, 
-    accessKeys: any[], 
+    encryptedJsonStr: string | undefined,
+    accessKeys: any[],
     fallback: string
   ): string => {
     if (!encryptedJsonStr || !eccPrivateKeyHex || !accessKeys) return fallback;
@@ -72,13 +72,13 @@ export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
       const accessKeyBundle: ECIESCiphertext = JSON.parse(myAccess.encryptedCaseKey);
       const caseKeyResult = decryptECIES(accessKeyBundle, eccPrivateKeyHex);
       if (!caseKeyResult.ok) return fallback;
-      
+
       const casePrivateKeyHex = caseKeyResult.plaintext;
 
       // 2. Decrypt the field using the case scalar
       const fieldBundle: ECIESCiphertext = JSON.parse(encryptedJsonStr);
       const result = decryptECIES(fieldBundle, casePrivateKeyHex);
-      
+
       return result.ok ? result.plaintext : fallback;
     } catch {
       return fallback;
@@ -129,7 +129,7 @@ export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
           </p>
         </div>
         <Link
-          href="/client/dashboard/cases/new"
+          href="/lawyer/dashboard/cases/new"
           className="inline-flex items-center justify-center gap-2 bg-slate-900 hover:bg-slate-800 text-white font-medium text-xs px-4 py-2.5 rounded-lg transition-colors shadow-sm"
         >
           <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-4 h-4">

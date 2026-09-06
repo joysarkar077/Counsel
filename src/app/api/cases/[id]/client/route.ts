@@ -3,6 +3,7 @@ import dbConnect from '@/lib/db/mongoose';
 import { Case } from '@/models/Case';
 import { requireRole } from '@/lib/auth/rbac';
 import { appendEntry } from '@/lib/audit/log';
+import { generateHMAC } from '@/lib/crypto/hmac';
 
 /**
  * PATCH /api/cases/[id]/client
@@ -61,6 +62,27 @@ const patchHandler = async function PATCH(req: Request, { params }: { params: Pr
       actorId: actorId,
       timestamp: new Date()
     });
+
+    // Recompute HMAC after updating clientId
+    const hmacPayload = [
+      caseDoc.clientId,
+      caseDoc.title_enc,
+      caseDoc.description_enc,
+      caseDoc.category_enc,
+      caseDoc.urgency_enc,
+      caseDoc.jurisdiction_enc,
+      caseDoc.opposingParty_enc,
+      caseDoc.claimValue_enc || '',
+      caseDoc.hearingDates_enc || '',
+      caseDoc.jurors_enc || '',
+      caseDoc.da_enc || '',
+      caseDoc.judge_enc || '',
+      caseDoc.officers_enc || '',
+      caseDoc.witnesses_enc || '',
+      caseDoc.exhibits_enc || '',
+      caseDoc.caseUpdates_enc || ''
+    ].join('|');
+    caseDoc.hmac = generateHMAC(process.env.SERVER_SECRET || 'dev-secret', hmacPayload);
 
     await caseDoc.save();
     

@@ -2,13 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { decrypt, encrypt } from '@/lib/crypto/rsa';
-
+import { reencryptCaseKeyAction } from '@/app/actions/reencryptCaseKey';
 interface LawyerClientAssignerProps {
   caseId: string;
   lawyerId: string;
   encryptedCaseKey: string;
-  privateKey: any;
+  privateKey: string | { d?: string };
 }
 
 interface ClientUser {
@@ -23,14 +22,14 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
   const [isOpen, setIsOpen] = useState(false);
   const [mode, setMode] = useState<'select' | 'create'>('select');
   const [clients, setClients] = useState<ClientUser[]>([]);
-  
+
   // Selection State
   const [selectedClientId, setSelectedClientId] = useState('');
-  
+
   // Creation State
   const [newName, setNewName] = useState('');
   const [newEmail, setNewEmail] = useState('');
-  
+
   // Global State
   const [loading, setLoading] = useState(false);
   const [fetching, setFetching] = useState(true);
@@ -54,9 +53,14 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
   }, []);
 
   const executeAssignment = async (targetClientId: string, latestClients?: ClientUser[]) => {
-
-    if (!privateKey) {
+    const lawyerPrivateKeyHex = typeof privateKey === 'string' ? privateKey : privateKey?.d || '';
+    if (!lawyerPrivateKeyHex) {
       alert('Private key not found in session. Please log in again.');
+      return;
+    }
+
+    if (!encryptedCaseKey) {
+      alert('Case access key not found for your account.');
       return;
     }
 
@@ -70,17 +74,19 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
         throw new Error('Client public key not found in the list. Please try again.');
       }
 
-      // 2. Decrypt the AES Case Key using the lawyer's private key
-      let aesKeyHex: string;
-      try {
-        aesKeyHex = decrypt(encryptedCaseKey, privateKey);
-      } catch (err) {
-        throw new Error('Failed to decrypt the case key using your credentials.');
+      // 2 & 3. Decrypt the case private scalar with the lawyer's key, then
+      //        re-encrypt it to the target client's ECC public key.
+      //        Both steps run server-side because ecc.ts needs Node.js crypto APIs.
+      const clientPubKeyHex = client.publicKey;
+      const reencryptResult = await reencryptCaseKeyAction(
+        encryptedCaseKey,
+        lawyerPrivateKeyHex,
+        clientPubKeyHex,
+      );
+      if (!reencryptResult.ok) {
+        throw new Error(reencryptResult.error);
       }
-
-      // 3. Re-encrypt the AES Case Key using the target client's public key
-      const clientPubKey = JSON.parse(client.publicKey);
-      const newEncryptedCaseKey = encrypt(aesKeyHex, clientPubKey);
+      const newEncryptedCaseKey = reencryptResult.encryptedCaseKey;
 
       // 4. Send it to the server
       const res = await fetch(`/api/cases/${caseId}/client`, {
@@ -100,7 +106,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
       alert('Client successfully connected to the case!');
       setIsOpen(false);
       router.refresh(); // Reload the page to reflect the new client
-      
+
     } catch (err: any) {
       console.error(err);
       alert(err.message || 'An unexpected error occurred.');
@@ -143,7 +149,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
       const fetchRes = await fetch('/api/lawyer/clients');
       const fetchJson = await fetchRes.json();
       if (!fetchJson.success) throw new Error('Failed to fetch updated client list');
-      
+
       setClients(fetchJson.data);
 
       // 3. Find the newly created client in the list using the ID returned from registration
@@ -184,7 +190,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
       {isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto overflow-x-hidden bg-slate-900/50 backdrop-blur-sm p-4">
           <div className="relative w-full max-w-md rounded-xl bg-white p-6 shadow-2xl ring-1 ring-slate-900/5">
-            
+
             {/* Modal Header */}
             <div className="flex items-center justify-between mb-5">
               <h3 className="text-lg font-semibold text-slate-900">
@@ -261,7 +267,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
                     className="w-full rounded-lg border border-slate-300 bg-white px-3.5 py-2.5 text-sm text-slate-900 focus:border-navy-core focus:outline-none focus:ring-1 focus:ring-navy-core disabled:opacity-50"
                     required
                   />
-                  
+
                   <button
                     type="submit"
                     disabled={!newName || !newEmail || loading}
@@ -271,7 +277,7 @@ export function LawyerClientAssigner({ caseId, lawyerId, encryptedCaseKey, priva
                   </button>
                 </form>
               )}
-              
+
               <div className="rounded-lg bg-slate-50 p-3 mt-2">
                 <p className="text-xs text-slate-500 text-center flex items-center justify-center gap-1.5">
                   <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" className="w-3.5 h-3.5">
