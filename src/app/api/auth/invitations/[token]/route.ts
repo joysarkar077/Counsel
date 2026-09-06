@@ -2,7 +2,8 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { Invitation } from '../../../../../models/Invitation';
 import { User } from '../../../../../models/User';
-import { generateKeyPair, encrypt } from '@/lib/crypto/rsa';
+import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '@/lib/crypto/ecc';
+import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
 import { hmacSha256 } from '@/lib/crypto/hmac';
 
@@ -51,12 +52,16 @@ export async function POST(
       return NextResponse.json({ error: 'An account with this email already exists' }, { status: 409 });
     }
 
-    // Run the RSA registration pipeline (same as /api/auth/register)
-    const { publicKey, privateKey } = generateKeyPair(1024); // 1024 for dev speed
+    // Run the ECC registration pipeline (same scheme as /api/auth/register)
+    // 1. ECC keypair — used for ECIES data encryption
+    const eccKeyPair = generateECCKeyPair();
 
-    const username_enc = encrypt(invitation.email.split('@')[0], publicKey); // Use email prefix as placeholder username
-    const email_enc = encrypt(invitation.email, publicKey);
-    const contact_enc = encrypt('', publicKey); // Can be filled later in profile settings
+    const username_enc = JSON.stringify(encryptECIES(invitation.email.split('@')[0], eccKeyPair.publicKey));
+    const email_enc = JSON.stringify(encryptECIES(invitation.email, eccKeyPair.publicKey));
+    const contact_enc = JSON.stringify(encryptECIES('', eccKeyPair.publicKey));
+
+    // 2. RSA keypair — stored for digital signatures only
+    const rsaKeyPair = generateRSAKeyPair(1024);
 
     const { hash: passwordHash, salt } = hashPassword(password);
 
@@ -67,8 +72,10 @@ export async function POST(
       contact_enc,
       passwordHash,
       salt,
-      publicKey: JSON.stringify(publicKey),
-      encryptedPrivateKey: privateKey.d,
+      publicKey: eccKeyPair.publicKey,
+      encryptedPrivateKey: eccKeyPair.privateKey,
+      rsaPublicKey: JSON.stringify(rsaKeyPair.publicKey),
+      rsaPrivateKey: rsaKeyPair.privateKey.d,
       role: invitation.role,
       isActive: true,
     });

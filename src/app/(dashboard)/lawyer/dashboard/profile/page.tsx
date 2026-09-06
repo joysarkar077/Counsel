@@ -2,13 +2,13 @@ import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
-import { decrypt } from '@/lib/crypto/rsa';
+import { decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 import EncryptedImage from '@/components/ui/EncryptedImage';
 
 export default async function AttorneyProfilePage() {
   const headersList = await headers();
   const userId = headersList.get('x-user-id');
-  
+
   let decryptedName = 'Loading...';
   let decryptedEmail = 'Loading...';
   let decryptedContact = 'Loading...';
@@ -23,15 +23,26 @@ export default async function AttorneyProfilePage() {
     const user = await User.findById(userId).lean();
     if (user) {
       try {
-        const publicKey = JSON.parse(user.publicKey);
-        const privateKey = { d: user.encryptedPrivateKey, n: publicKey.n };
-        
-        decryptedName = decrypt(user.username_enc, privateKey);
-        decryptedEmail = decrypt(user.email_enc, privateKey);
-        decryptedContact = user.contact_enc ? decrypt(user.contact_enc, privateKey) : 'No contact provided';
-        decryptedAddress = user.address_enc ? decrypt(user.address_enc, privateKey) : '';
-        decryptedBloodGroup = user.bloodGroup_enc ? decrypt(user.bloodGroup_enc, privateKey) : 'O+';
-        if (user.avatarKey_enc) decryptedAvatarKey = decrypt(user.avatarKey_enc, privateKey);
+        // encryptedPrivateKey is the raw ECC scalar hex; publicKey is the ECC 'x,y' hex.
+        // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
+        const eccPrivKey = user.encryptedPrivateKey;
+
+        const tryDecrypt = (encJson: string | undefined, fallback: string): string => {
+          if (!encJson || !eccPrivKey) return fallback;
+          try {
+            const bundle: ECIESCiphertext = JSON.parse(encJson);
+            return decryptOrFallback(bundle, eccPrivKey, fallback);
+          } catch {
+            return fallback;
+          }
+        };
+
+        decryptedName = tryDecrypt(user.username_enc, 'Unknown');
+        decryptedEmail = tryDecrypt(user.email_enc, '');
+        decryptedContact = tryDecrypt(user.contact_enc, 'No contact provided');
+        decryptedAddress = tryDecrypt(user.address_enc, '');
+        decryptedBloodGroup = tryDecrypt(user.bloodGroup_enc, 'O+');
+        decryptedAvatarKey = tryDecrypt(user.avatarKey_enc, '');
         avatarUrl = user.avatarUrl || '';
         userData = user;
       } catch (err) {

@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '../../../../models/User';
 import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '@/lib/crypto/ecc';
-import { generateKeyPair as generateRSAKeyPair, encrypt as encryptRSA } from '@/lib/crypto/rsa';
+import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
 import { appendEntry } from '@/lib/audit/log';
 
