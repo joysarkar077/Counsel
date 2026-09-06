@@ -15,8 +15,8 @@ const features = [
   },
   {
     icon: '🔑',
-    title: 'Two-Factor Auth (TOTP)',
-    desc: 'Login requires your password and a 30-second rotating code. A stolen password alone is not enough to break in.',
+    title: 'Two-Factor Auth (Email OTP)',
+    desc: 'Login requires your password and a secure one-time code sent to your email. A stolen password alone is not enough to break in.',
   },
   {
     icon: '🛡️',

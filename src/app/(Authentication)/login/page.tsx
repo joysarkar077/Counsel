@@ -74,7 +74,7 @@ export default function LoginPage() {
           </div>
           <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>
-            TOTP two-factor authentication
+            Email OTP two-factor authentication
           </div>
           <div className="flex items-center gap-3 text-sm font-medium text-slate-300">
             <span className="w-2 h-2 rounded-full bg-blue-500"></span>

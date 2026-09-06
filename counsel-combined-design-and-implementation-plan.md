@@ -1,7 +1,7 @@
 # Counsel — Secure Legal Case Management System
 ## Combined Design and Implementation Plan
 
-**Scope:** This document merges the workflow/data design (System Design v2) with the cryptography implementation plan and task division. It reflects the crypto architecture (RSA + ECC built from scratch, HMAC, TOTP 2FA, RBAC, key management), the case lifecycle workflow layer, and the assignment of work across three people.
+**Scope:** This document merges the workflow/data design (System Design v2) with the cryptography implementation plan and task division. It reflects the crypto architecture (RSA + ECC built from scratch, HMAC, Email OTP 2FA, RBAC, key management), the case lifecycle workflow layer, and the assignment of work across three people.
 
 ---
 
@@ -11,7 +11,7 @@
 
 Google Sign-In is excluded from the graded system. The reasoning is that OAuth delegates authentication to Google, so no password exists for the system to salt or hash, and the two-factor check never actually runs for that user. Verifying a Google ID token also requires a library-based signature check, which conflicts with the requirement that all cryptographic algorithms be implemented from scratch. Google additionally returns name and email in plaintext through its API, bypassing the RSA-encryption-at-registration pipeline entirely.
 
-If the team wants Google Sign-In visible in the UI for presentation purposes, a disabled "Sign in with Google (coming soon)" button is acceptable, as long as it is not wired to any real authentication logic. Everything else in this document assumes only the custom email/password plus TOTP flow.
+If the team wants Google Sign-In visible in the UI for presentation purposes, a disabled "Sign in with Google (coming soon)" button is acceptable, as long as it is not wired to any real authentication logic. Everything else in this document assumes only the custom email/password plus Email OTP flow.
 
 ### 2. Roles Overview
 
@@ -55,7 +55,7 @@ If the team wants Google Sign-In visible in the UI for presentation purposes, a 
 ### 4. Role Workflows (detailed)
 
 #### 4.1 Client
-1. Registers or logs in through the standard encrypted-PII registration flow, with a salted and hashed password and TOTP on login.
+1. Registers or logs in through the standard encrypted-PII registration flow, with a salted and hashed password and Email OTP on login.
 2. Creates a case request by filling in a title and description, which creates a case in `PENDING_REVIEW` status with no lawyer attached.
 3. Sees a dashboard listing all cases they are attached to, each showing its status.
 4. Inside a case, the client can view hearing details read-only, add notes visible to everyone attached to the case, upload files with an optional attached note, and comment on any note or file. Every note or file shows who added it, by name and role badge.
@@ -86,9 +86,8 @@ If the team wants Google Sign-In visible in the UI for presentation purposes, a 
 **Auth**
 ```
 POST   /api/auth/register
-POST   /api/auth/login
-POST   /api/auth/verify-2fa
-POST   /api/auth/logout
+POST   /api/auth/callback/credentials         -- NextAuth unified login and OTP verification
+POST   /api/auth/signout                      -- NextAuth logout
 POST   /api/auth/invitations/:token/accept    -- lawyer/admin sets password on first login
 ```
 
