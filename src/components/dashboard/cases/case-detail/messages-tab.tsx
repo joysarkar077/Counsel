@@ -232,13 +232,12 @@ export function MessagesTab({
                     className={`flex ${msg.isMine ? 'justify-end' : 'justify-start'}`}
                   >
                     <div
-                      className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${
-                        !msg.integrityOk
+                      className={`max-w-[72%] rounded-2xl px-4 py-2.5 shadow-sm ${!msg.integrityOk
                           ? 'bg-red-50 border border-red-200 text-red-700 rounded-br-sm'
                           : msg.isMine
-                          ? 'bg-slate-900 text-white rounded-br-sm'
-                          : 'bg-slate-100 text-slate-800 rounded-bl-sm'
-                      }`}
+                            ? 'bg-slate-900 text-white rounded-br-sm'
+                            : 'bg-slate-100 text-slate-800 rounded-bl-sm'
+                        }`}
                     >
                       <p className="text-sm leading-relaxed break-words">{msg.text}</p>
                       <p className={`text-[10px] mt-1 ${msg.isMine && msg.integrityOk ? 'text-slate-400' : 'text-slate-500'} text-right`}>
