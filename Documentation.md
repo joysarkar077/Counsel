@@ -16,9 +16,10 @@
 - [7. Frontend Dashboards & Task Workflows](#7-frontend-dashboards--task-workflows)
 - [8. Step-by-Step Data Flow (For Beginners)](#8-step-by-step-data-flow-for-beginners)
 - [9. Step-by-Step File Upload & Retrieval Flow (For Beginners)](#9-step-by-step-file-upload--retrieval-flow-for-beginners)
-- [10. RSA Non-Repudiation: Case Status Change Flow](#10-rsa-non-repudiation-case-status-change-flow)
   - [A. The Lawyer Dashboard (`/lawyer/`)](#a-the-lawyer-dashboard-lawyer)
   - [B. The Client Dashboard (`/client/`)](#b-the-client-dashboard-client)
+- [10. RSA Non-Repudiation: Case Status Change Flow](#10-rsa-non-repudiation-case-status-change-flow)
+- [11. Zero-Knowledge Private Key Vault (Encryption at Rest)](#11-zero-knowledge-private-key-vault-encryption-at-rest)
 
 ---
 
@@ -250,10 +251,10 @@ When a lawyer creates a new case, the system must establish the cryptographic bo
            // Generate 32 bytes (256 bits) of cryptographic randomness
            d = BigInt(`0x${crypto.randomBytes(32).toString('hex')}`);
          } while (d === 0n || d >= N); // Ensure valid scalar within curve order N
-       
+
          // Derive Public Key Q by multiplying private scalar d with Generator Point G
          const Q = scalarMultiply(d, G);
-       
+
          return {
            privateKey: d.toString(16).padStart(64, '0'),
            publicKey: encodePoint(Q),
@@ -547,7 +548,7 @@ const fileKeyPair = generateFileKeyPair();
 ```
 
 ### Step 3: Encrypting the Binary File (Frontend)
-The browser takes the raw binary bytes of `id_card.pdf` and converts them into a hex string so the cryptography algorithm can read it. It then encrypts the hex string using the new **File Public Key**. 
+The browser takes the raw binary bytes of `id_card.pdf` and converts them into a hex string so the cryptography algorithm can read it. It then encrypts the hex string using the new **File Public Key**.
 
 ```typescript
 import { encryptFileECIES } from '@/lib/crypto/fileCrypto';
@@ -566,12 +567,12 @@ const encryptedFile = new File([encodedBlob], "encrypted_exhibit.bin");
 ```
 
 ### Step 4: Uploading to the Cloud (Network)
-The browser uploads the scrambled `encryptedFile` to our cloud storage provider (UploadThing CDN). 
+The browser uploads the scrambled `encryptedFile` to our cloud storage provider (UploadThing CDN).
 **Notice:** The cloud provider only receives a scrambled mess of bytes. If the cloud provider is hacked, the hacker only gets useless, encrypted binary blobs.
 The cloud provider returns a public link to the scrambled file: `fileUrl`.
 
 ### Step 5: Securing the File's Key (Frontend)
-We now have a scrambled file on the internet, but how do we save the **File Private Key** so authorized users can unlock it later? 
+We now have a scrambled file on the internet, but how do we save the **File Private Key** so authorized users can unlock it later?
 We encrypt the File Private Key using the **Case Public Key**. This ensures that anyone who has access to the Case can also decrypt the file.
 
 ```typescript
@@ -597,10 +598,10 @@ The frontend sends an API request to the backend containing the CDN link and the
 ### Step 7: Retrieving and Decrypting (Frontend)
 Days later, the lawyer clicks the "Download" button next to `id_card.pdf`. Here is how the browser reverses the process:
 
-**1. Unlocking the Case Private Key:** 
+**1. Unlocking the Case Private Key:**
 As explained in Section 8, the lawyer's browser has already used their personal key to unlock the **Case Private Key**.
 
-**2. Unlocking the File Private Key:** 
+**2. Unlocking the File Private Key:**
 The browser takes the scrambled `fileKey` from the database and decrypts it using the **Case Private Key**.
 ```typescript
 // 1. Recover the File Private Key
@@ -623,11 +624,11 @@ const decryptResult = decryptFileECIES(bundle, filePrivateKey);
 
 if (decryptResult.ok) {
   const originalBinaryBytes = decryptResult.data;
-  
+
   // 4. Trigger a download to the Lawyer's hard drive
   const fileBlob = new Blob([originalBinaryBytes], { type: 'application/octet-stream' });
   const objectUrl = URL.createObjectURL(fileBlob);
-  
+
   const link = document.createElement('a');
   link.href = objectUrl;
   link.download = exhibit.fileName; // "id_card.pdf"
@@ -889,3 +890,61 @@ const [status, setStatus] = useState<CaseStatus>(initialStatus);
 
 The badge color, label, and available transitions in the dropdown all automatically react to the new state value.
 
+---
+
+## 11. Zero-Knowledge Private Key Vault (Encryption at Rest)
+
+To guarantee a Zero-Knowledge architecture, user private keys (both ECC and RSA) must never be stored in plaintext. If the database is compromised, the attacker must not be able to read historical communications or forge digital signatures. 
+
+However, this project strictly prohibits the use of symmetric encryption algorithms (like AES). We cannot simply wrap the private keys in an AES-256-GCM block using the user's password. We had to build an asymmetric key-wrapping vault from scratch.
+
+### The Vault Architecture
+
+The system secures private keys by generating a deterministic **Vault Keypair** from the user's password, and then using **ECIES** to seal the real private keys inside that vault.
+
+#### 1. Deriving the Vault Keypair (`deriveECCKeyFromPassword`)
+
+Instead of using the user's password directly, we use it to seed an ECC (secp256k1) keypair generation:
+
+1. **PBKDF2 Hashing:** We run the plaintext password and the user's database `salt` through 10,000 iterations of HMAC-SHA256. 
+   *Note:* We append a block index of `2` to the salt during this step. This ensures the output is cryptographically separated from the standard login hash (which uses block index `1`).
+2. **Clamping to a Scalar:** The 32-byte output is treated as a BigInt scalar `d`. We calculate `d mod N` (where `N` is the secp256k1 curve order) to guarantee it is a valid private key.
+3. **Public Key Derivation:** We perform Elliptic Curve Scalar Multiplication (`d * G`) to calculate the Vault Public Key (`Q`).
+
+Because this process is deterministic, entering the same password will always regenerate the exact same Vault Keypair. **The Vault Keypair is entirely ephemeral; it is never stored anywhere in the database.**
+
+#### 2. Sealing the Keys (Registration / Rotation)
+
+When a user is created, their real cryptographic keys (the ECC private key for data encryption, and the RSA private exponent `d` for digital signatures) are generated.
+
+We treat these raw hex strings as plain text data, and call our `encrypt()` function to **ECIES-encrypt** them using the Vault Public Key.
+
+```typescript
+// src/lib/crypto/privateKeyVault.ts
+
+const vaultKeyPair = deriveECCKeyFromPassword(password, saltHex);
+
+// ECIES-encrypt the actual private keys using the Vault Public Key
+const eccBundle = encrypt(realEccPrivateKeyHex, vaultKeyPair.publicKey);
+const rsaBundle = encrypt(realRsaPrivateKeyHex, vaultKeyPair.publicKey);
+```
+
+The resulting JSON bundles (containing an Initialization Vector, an Ephemeral Public Key, the Ciphertext, and an HMAC MAC) are written to MongoDB. The raw private scalars are immediately discarded from memory.
+
+#### 3. Unsealing the Keys (Login)
+
+When the user attempts to log in:
+
+1. They provide their email, password, and eventually a 2FA OTP.
+2. The server temporarily holds the plaintext password in browser memory (`sessionStorage`) while the user types the OTP.
+3. Once the OTP is verified, the server feeds the password and salt back into `deriveECCKeyFromPassword()` to reconstruct the **Vault Private Key**.
+4. The server uses the Vault Private Key to ECIES-decrypt the JSON bundles pulled from MongoDB.
+5. The raw private keys are recovered.
+
+#### 4. The Session (NextAuth JWT)
+
+To avoid asking for the password on every page load, the decrypted private keys are injected into the **NextAuth JSON Web Token (JWT)** payload. 
+
+The NextAuth framework automatically encrypts this entire JWT cookie symmetrically using the server's `NEXTAUTH_SECRET`. The cookie is flagged as HTTP-only, meaning malicious JavaScript in the browser cannot read the private keys.
+
+Whenever the user accesses a secure page (like reading a case file), a server-side helper (`getDecryptedKeys()`) decrypts the NextAuth session, extracts the private keys, and decrypts the requested data seamlessly. The raw private keys never touch the MongoDB database again.
