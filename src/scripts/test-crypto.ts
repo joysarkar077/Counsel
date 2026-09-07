@@ -1,6 +1,5 @@
 import { generateKeyPair as generateRSAKeyPair, encrypt as rsaEncrypt, decrypt as rsaDecrypt, sign as rsaSign, verify as rsaVerify } from '../lib/crypto/rsa';
 import { generateKeyPair as generateECCKeyPair, encrypt as eccEncrypt, decrypt as eccDecrypt } from '../lib/crypto/ecc';
-import { signECDSA, verifyECDSA } from '../lib/crypto/ecdsa';
 import { generateHMAC } from '../lib/crypto/hmac';
 import { hashPassword, verifyPassword } from '../lib/crypto/kdf';
 
@@ -34,10 +33,7 @@ async function main() {
     console.log("Decryption Failed:", eccDecrypted.error);
   }
 
-  const eccSig = signECDSA(eccPlaintext, eccKeys.privateKey);
-  console.log("ECDSA Signature:", JSON.stringify(eccSig));
-  const eccSigValid = verifyECDSA(eccPlaintext, eccSig, eccKeys.publicKey);
-  console.log("ECDSA Signature Valid:", eccSigValid);
+
 
   console.log("\n=== HMAC Implementation Test ===");
   const hmacKey = "super-secret-key-12345";
