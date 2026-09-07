@@ -1,45 +1,33 @@
+'use client';
+
+import { useState } from 'react';
+import { StatusChangeModal } from './StatusChangeModal';
 import type { CaseStatus } from '@/types/case';
+
 
 interface OverviewTabProps {
   caseId: string;
+  /** The MongoDB _id of the case, used for the API call. */
+  caseMongoId: string;
   status: CaseStatus;
   clientId: string;
   clientName?: string;
   lawyerIds: string[];
-  lawyerNames?: string[];
+  lawyerNames?: string[]
   createdAt: string;
   updatedAt: string;
-
-  /**
-   * Decrypted title. Will be populated once ECDSA session management
-   * provides the private key (Task 6). Shows a placeholder until then.
-   */
+  /** If provided, the Change Status modal will be rendered. */
+  rsaPrivateKeyHex?: string;
+  rsaPublicKeyJson?: string;
   title?: string;
-  /**
-   * Decrypted description. Same caveat as title.
-   */
   description?: string;
-  /**
-   * Decrypted opposing party. Same caveat.
-   */
   opposingParty?: string;
-  /**
-   * Decrypted claim value. Same caveat.
-   */
   claimValue?: string;
-  /**
-   * Decrypted category. Same caveat.
-   */
   category?: string;
-  /**
-   * Decrypted urgency. Same caveat.
-   */
   urgency?: string;
-  /**
-   * Decrypted jurisdiction. Same caveat.
-   */
   jurisdiction?: string;
 }
+
 
 const STATUS_STYLES: Record<CaseStatus, { label: string; classes: string }> = {
   PENDING_REVIEW: {
@@ -86,7 +74,8 @@ function EncryptedPlaceholder({ label }: { label: string }) {
 
 export function OverviewTab({
   caseId,
-  status,
+  caseMongoId,
+  status: initialStatus,
   clientId,
   clientName,
   lawyerIds,
@@ -100,7 +89,12 @@ export function OverviewTab({
   description,
   opposingParty,
   claimValue,
+  rsaPrivateKeyHex,
+  rsaPublicKeyJson,
 }: OverviewTabProps) {
+  // Local state so the badge updates immediately after a successful status change
+  // without requiring a full page reload.
+  const [status, setStatus] = useState<CaseStatus>(initialStatus);
   const { label, classes } = STATUS_STYLES[status] || STATUS_STYLES.PENDING_REVIEW;
 
   const displayLawyers = lawyerNames && lawyerNames.length > 0 ? lawyerNames : lawyerIds;
@@ -114,9 +108,21 @@ export function OverviewTab({
         <MetaRow
           label="Status"
           value={
-            <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${classes}`}>
-              {label}
-            </span>
+            <div className="flex items-center gap-3 flex-wrap">
+              <span className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold uppercase tracking-wider ${classes}`}>
+                {label}
+              </span>
+              {rsaPrivateKeyHex && rsaPublicKeyJson && (
+                <StatusChangeModal
+                  caseId={caseId}
+                  caseMongoId={caseMongoId}
+                  currentStatus={status}
+                  rsaPrivateKeyHex={rsaPrivateKeyHex}
+                  rsaPublicKeyJson={rsaPublicKeyJson}
+                  onSuccess={(newStatus) => setStatus(newStatus)}
+                />
+              )}
+            </div>
           }
         />
 

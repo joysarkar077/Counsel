@@ -154,6 +154,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
           overview={
             <OverviewTab
               caseId={caseDoc.caseId || `CASE-${caseDoc._id.toString().slice(-4)}`}
+              caseMongoId={caseDoc._id.toString()}
               status={caseDoc.status as CaseStatus || 'PENDING_REVIEW'}
               clientId={clientName}
               lawyerIds={lawyerNames}
@@ -166,6 +167,8 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               jurisdiction={jurisdiction}
               opposingParty={opposingParty}
               claimValue={claimValue}
+              rsaPrivateKeyHex={user?.rsaPrivateKey ?? ''}
+              rsaPublicKeyJson={user?.rsaPublicKey ?? ''}
             />
           }
           hearings={
