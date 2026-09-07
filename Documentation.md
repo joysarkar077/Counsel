@@ -894,7 +894,7 @@ The badge color, label, and available transitions in the dropdown all automatica
 
 ## 11. Zero-Knowledge Private Key Vault (Encryption at Rest)
 
-To guarantee a Zero-Knowledge architecture, user private keys (both ECC and RSA) must never be stored in plaintext. If the database is compromised, the attacker must not be able to read historical communications or forge digital signatures. 
+To guarantee a Zero-Knowledge architecture, user private keys (both ECC and RSA) must never be stored in plaintext. If the database is compromised, the attacker must not be able to read historical communications or forge digital signatures.
 
 However, this project strictly prohibits the use of symmetric encryption algorithms (like AES). We cannot simply wrap the private keys in an AES-256-GCM block using the user's password. We had to build an asymmetric key-wrapping vault from scratch.
 
@@ -906,7 +906,7 @@ The system secures private keys by generating a deterministic **Vault Keypair** 
 
 Instead of using the user's password directly, we use it to seed an ECC (secp256k1) keypair generation:
 
-1. **PBKDF2 Hashing:** We run the plaintext password and the user's database `salt` through 10,000 iterations of HMAC-SHA256. 
+1. **PBKDF2 Hashing:** We run the plaintext password and the user's database `salt` through 10,000 iterations of HMAC-SHA256.
    *Note:* We append a block index of `2` to the salt during this step. This ensures the output is cryptographically separated from the standard login hash (which uses block index `1`).
 2. **Clamping to a Scalar:** The 32-byte output is treated as a BigInt scalar `d`. We calculate `d mod N` (where `N` is the secp256k1 curve order) to guarantee it is a valid private key.
 3. **Public Key Derivation:** We perform Elliptic Curve Scalar Multiplication (`d * G`) to calculate the Vault Public Key (`Q`).
@@ -943,7 +943,7 @@ When the user attempts to log in:
 
 #### 4. The Session (NextAuth JWT)
 
-To avoid asking for the password on every page load, the decrypted private keys are injected into the **NextAuth JSON Web Token (JWT)** payload. 
+To avoid asking for the password on every page load, the decrypted private keys are injected into the **NextAuth JSON Web Token (JWT)** payload.
 
 The NextAuth framework automatically encrypts this entire JWT cookie symmetrically using the server's `NEXTAUTH_SECRET`. The cookie is flagged as HTTP-only, meaning malicious JavaScript in the browser cannot read the private keys.
 

@@ -6,6 +6,8 @@ import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '
 import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
 import { hmacSha256 } from '@/lib/crypto/hmac';
+import { sealPrivateKeys } from '@/lib/crypto/privateKeyVault';
+
 
 /**
  * POST /api/auth/invitations/[token]/accept
@@ -65,6 +67,14 @@ export async function POST(
 
     const { hash: passwordHash, salt } = hashPassword(password);
 
+    // Seal both private keys before saving — raw scalars never hit the database.
+    const { sealedECC, sealedRSA } = sealPrivateKeys(
+      eccKeyPair.privateKey,
+      rsaKeyPair.privateKey.d,
+      password,
+      salt,
+    );
+
     await User.create({
       username_enc,
       email_enc,
@@ -73,9 +83,10 @@ export async function POST(
       passwordHash,
       salt,
       publicKey: eccKeyPair.publicKey,
-      encryptedPrivateKey: eccKeyPair.privateKey,
+      encryptedPrivateKey: sealedECC,
       rsaPublicKey: JSON.stringify(rsaKeyPair.publicKey),
-      rsaPrivateKey: rsaKeyPair.privateKey.d,
+      rsaPrivateKey: sealedRSA,
+      keyVersion: 2,
       role: invitation.role,
       isActive: true,
     });

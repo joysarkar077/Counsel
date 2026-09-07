@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/db/mongoose';
@@ -36,7 +37,7 @@ export default async function AdminCaseDetailPage({ params }: { params: Promise<
   // Find Admin's copy of the AES key
   const adminAccess = caseDoc.accessKeys.find((ak: any) => ak.userId.toString() === userId);
 
-  const eccPrivateKeyHex = user?.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   const tryDecrypt = (encryptedJsonStr: string | undefined, fallback: string) => {
     if (!encryptedJsonStr) return `${fallback} (No JSON)`;

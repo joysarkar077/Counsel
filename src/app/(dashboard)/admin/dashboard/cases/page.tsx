@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -28,7 +29,7 @@ export default async function AdminCasesPage(): Promise<React.ReactNode> {
   // Fetch all cases for Admin
   const caseDocs = await Case.find({}).sort({ updatedAt: -1 }).lean();
 
-  const eccPrivateKeyHex = user?.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   const tryDecrypt = (
     encryptedJsonStr: string | undefined, 

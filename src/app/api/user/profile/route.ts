@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
 import { NextResponse } from 'next/server';
@@ -29,7 +30,7 @@ export async function GET(req: Request) {
       return NextResponse.json({ success: false, error: 'User not found' }, { status: 404 });
     }
 
-    const eccPrivKey = user.encryptedPrivateKey;
+    const { eccPrivateKey: eccPrivKey } = await getDecryptedKeys();
 
     const name = tryDecryptField(user.username_enc, eccPrivKey, 'User');
     const email = tryDecryptField(user.email_enc, eccPrivKey, '');
@@ -90,7 +91,7 @@ export async function PUT(req: Request) {
       // Move legacy RSA keys to their correct fields to preserve signature verification
       if (user.publicKey && user.publicKey.startsWith('{')) {
         user.rsaPublicKey = user.publicKey;
-        user.rsaPrivateKey = user.encryptedPrivateKey;
+        // Bugfix: removed overwriting rsa key
       }
 
       user.publicKey = eccPublicKey;

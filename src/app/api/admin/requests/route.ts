@@ -1,3 +1,4 @@
+import { isSealed } from '@/lib/crypto/privateKeyVault';
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -29,12 +30,12 @@ export async function GET() {
         try {
           if (user.email_enc) {
             const emailBundle: ECIESCiphertext = JSON.parse(user.email_enc);
-            const res = decryptECIES(emailBundle, user.encryptedPrivateKey);
+            const res = isSealed(user.encryptedPrivateKey) ? { ok: true, plaintext: "[Encrypted - user must login to upgrade]" } : decryptECIES(emailBundle, user.encryptedPrivateKey);
             if (res.ok) email = res.plaintext;
           }
           if (user.contact_enc) {
             const contactBundle: ECIESCiphertext = JSON.parse(user.contact_enc);
-            const res = decryptECIES(contactBundle, user.encryptedPrivateKey);
+            const res = isSealed(user.encryptedPrivateKey) ? { ok: true, plaintext: "[Encrypted]" } : decryptECIES(contactBundle, user.encryptedPrivateKey);
             if (res.ok) contact = res.plaintext;
           }
         } catch (e) {

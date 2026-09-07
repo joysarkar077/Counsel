@@ -4,6 +4,7 @@ import { User } from '../../../../models/User';
 import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '@/lib/crypto/ecc';
 import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
+import { sealPrivateKeys } from '@/lib/crypto/privateKeyVault';
 import { appendEntry } from '@/lib/audit/log';
 
 export async function POST(req: Request) {
@@ -22,7 +23,6 @@ export async function POST(req: Request) {
 
     const emailHash = generateEmailBlindIndex(email);
 
-    // Check if user already exists
     const existingUser = await User.findOne({ emailHash });
     if (existingUser) {
       return NextResponse.json({ error: 'User already exists' }, { status: 409 });
@@ -38,27 +38,34 @@ export async function POST(req: Request) {
     const contact_enc = JSON.stringify(encryptECIES(contact || 'None', eccKeyPair.publicKey));
 
     // 3. Generate RSA-1024 keypair — used exclusively for digital signatures (second asymmetric algorithm).
-    //    Larger key sizes (2048) would be production-grade; 1024 is used here for keygen speed.
     const rsaKeyPair = generateRSAKeyPair(1024);
 
     // 4. Hash Password using our from-scratch PBKDF2 (auto-generates salt)
     const { hash: passwordHash, salt } = hashPassword(password);
 
-    // 5. Persist
+    // 5. Seal both private keys with a password-derived ECIES vault.
+    //    Raw private scalars are NEVER written to the database in plaintext.
+    const { sealedECC, sealedRSA } = sealPrivateKeys(
+      eccKeyPair.privateKey,
+      rsaKeyPair.privateKey.d,
+      password,
+      salt,
+    );
+
+    // 6. Persist — encryptedPrivateKey and rsaPrivateKey hold sealed ECIES bundles.
     const newUser = new User({
-      fullName: username, // plaintext for admin display routing
+      fullName: username,
       username_enc,
       email_enc,
       emailHash,
       contact_enc,
       passwordHash,
       salt,
-      // ECC keypair — for ECIES encryption (primary asymmetric algorithm)
       publicKey: eccKeyPair.publicKey,
-      encryptedPrivateKey: eccKeyPair.privateKey,
-      // RSA keypair — for digital signatures (second asymmetric algorithm)
+      encryptedPrivateKey: sealedECC,
       rsaPublicKey: JSON.stringify(rsaKeyPair.publicKey),
-      rsaPrivateKey: rsaKeyPair.privateKey.d,
+      rsaPrivateKey: sealedRSA,
+      keyVersion: 2,
       role,
       isActive: role === 'client', // Lawyers require admin activation
     });

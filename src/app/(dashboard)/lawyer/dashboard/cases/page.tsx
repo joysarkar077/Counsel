@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
@@ -23,7 +24,7 @@ export default async function LawyerCasesPage(): Promise<React.ReactNode> {
 
   // Fetch the lawyer's user record to retrieve their RSA private key for decryption
   const user = await User.findById(userId).lean();
-  const eccPrivateKeyHex = user?.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   const tryDecrypt = (
     encryptedJsonStr: string | undefined, 
