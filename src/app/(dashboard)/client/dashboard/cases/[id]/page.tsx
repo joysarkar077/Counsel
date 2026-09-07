@@ -12,52 +12,17 @@ import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-t
 import type { CaseStatus } from '@/types/case';
 import dbConnect from '@/lib/db/mongoose';
 import { User } from '@/models/User';
+import { Case } from '@/models/Case';
 import { decrypt as decryptECIES, decryptOrFallback, type ECIESCiphertext } from '@/lib/crypto/ecc';
 
 interface CaseDetailPageProps {
   params: Promise<{ id: string }>;
 }
 
-/** Fetch the case from the internal API, forwarding the session cookie. */
-async function fetchCase(id: string, cookieHeader: string) {
-  const res = await fetch(`${process.env.NEXT_PUBLIC_BASE_URL ?? 'http://localhost:3000'}/api/cases/${id}`, {
-    headers: { Cookie: cookieHeader },
-    cache: 'no-store',
-  });
-
-  if (res.status === 404) return null;
-  if (!res.ok) throw new Error(`Failed to fetch case: ${res.status}`);
-
-  const json = await res.json();
-  return json.data as {
-    _id: string;
-    clientId: string;
-    casePublicKey: string;
-    title_enc: string;
-    description_enc: string;
-    category_enc: string;
-    urgency_enc: string;
-    jurisdiction_enc: string;
-    opposingParty_enc: string;
-    claimValue_enc: string;
-    hearingDates_enc?: string;
-    exhibits_enc?: string;
-    clientDocuments_enc?: string;
-    caseUpdates_enc?: string;
-    accessKeys: any[];
-    lawyerIds: string[];
-    status: CaseStatus;
-    createdAt: string;
-    updatedAt: string;
-  };
-}
-
 export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   const { id } = await params;
-  const cookieStore = await cookies();
-  const cookieHeader = cookieStore.getAll().map((c) => `${c.name}=${c.value}`).join('; ');
-
-  const caseData = await fetchCase(id, cookieHeader);
+  await dbConnect();
+  const caseData = await Case.findById(id).lean();
   if (!caseData) notFound();
 
   // Fetch the user's ECC keys for decryption
@@ -123,11 +88,11 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
     parsedHearings = JSON.parse(hearingDates || '[]');
   } catch {}
 
-  const clientUserDoc = await User.findById(caseData.clientId).lean();
-  const clientName = clientUserDoc?.fullName || caseData.clientId;
+  const clientUserDoc = await User.findById(caseData.clientId.toString()).lean();
+  const clientName = clientUserDoc?.fullName || caseData.clientId.toString();
 
   const lawyerUserDocs = await User.find({ _id: { $in: caseData.lawyerIds } }).lean();
-  const lawyerNames = caseData.lawyerIds.map(id => {
+  const lawyerNames = caseData.lawyerIds.map((id: any) => {
     const lawyer = lawyerUserDocs.find(u => u._id.toString() === id.toString());
     return lawyer?.fullName || id;
   });
@@ -151,7 +116,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             <h1 className="text-[1.8rem] font-extrabold text-navy-deepest tracking-tight mb-1">
               Case Detail
             </h1>
-            <code className="text-sm text-text-muted">{caseData._id}</code>
+            <code className="text-sm text-text-muted">{caseData._id.toString()}</code>
           </div>
         </div>
       </div>
@@ -159,18 +124,18 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
       {/* Tabbed content */}
       <div className="rounded-xl border border-border bg-bg-card p-6">
           <CaseTabs
-            caseId={caseData._id}
+            caseId={caseData._id.toString()}
             overview={
               <OverviewTab
-                caseId={caseData._id}
-                caseMongoId={caseData._id}
+                caseId={caseData._id.toString()}
+                caseMongoId={caseData._id.toString()}
                 status={caseData.status}
-                clientId={caseData.clientId}
+                clientId={caseData.clientId.toString()}
                 clientName={clientName}
                 lawyerIds={caseData.lawyerIds}
                 lawyerNames={lawyerNames}
-                createdAt={caseData.createdAt}
-                updatedAt={caseData.updatedAt}
+                createdAt={caseData.createdAt.toISOString()}
+                updatedAt={caseData.updatedAt.toISOString()}
                 title={title}
                 description={description}
                 category={category}
@@ -204,7 +169,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             notes={undefined}
             exhibits={
               <ExhibitsTab
-                caseId={caseData._id}
+                caseId={caseData._id.toString()}
                 casePrivateKeyHex={casePrivateKeyHex}
                 casePublicKey={caseData.casePublicKey}
                 initialData={exhibits || '[]'}
@@ -214,7 +179,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             clientDocuments={
               <ClientDocumentsTab
                 key="client-documents"
-                caseId={caseData._id.toString()}
+                caseId={caseData._id.toString().toString()}
                 casePrivateKeyHex={casePrivateKeyHex}
                 casePublicKey={caseData.casePublicKey}
                 initialData={clientDocuments || '[]'}
@@ -223,7 +188,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             }
             messages={
               <MessagesTab
-                caseId={caseData._id}
+                caseId={caseData._id.toString()}
                 casePrivateKeyHex={casePrivateKeyHex}
                 casePublicKey={caseData.casePublicKey}
                 currentUserId={userId}

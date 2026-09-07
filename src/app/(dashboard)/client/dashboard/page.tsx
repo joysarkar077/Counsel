@@ -48,7 +48,7 @@ export default async function ClientDashboardPage() {
       const result = decryptECIES(bundle, eccPrivateKeyHex);
       return result.ok ? result.plaintext : fallback;
     } catch {
-      return fallback || encVal;
+      return fallback;
     }
   };
 
