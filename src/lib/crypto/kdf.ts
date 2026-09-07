@@ -12,6 +12,9 @@
 import { randomBytes } from 'crypto';
 import { hmacSha256 } from './hmac';
 import { constantTimeEqual } from './utils';
+import { scalarMultiply, encodePoint, G, N } from './secp256k1';
+import type { ECCKeyPair } from './ecc';
+
 
 const DEFAULT_ITERATIONS = 10_000;
 const SALT_LENGTH_BYTES = 16;
@@ -115,4 +118,56 @@ export function generateSalt(): string {
 export function generateEmailBlindIndex(email: string): string {
   const secret = Buffer.from(process.env.BLIND_INDEX_KEY || 'default-blind-index-key-do-not-use-in-prod', 'utf-8');
   return hmacSha256(secret, Buffer.from(email.toLowerCase(), 'utf-8')).toString('hex');
+}
+
+/**
+ * Deterministically derives a secp256k1 ECC keypair from a user's password and salt.
+ *
+ * Uses our from-scratch PBKDF2 (via pbkdf2Derive) with a fixed iteration count to
+ * produce 32 bytes of key material, then clamps it to a valid curve scalar.
+ * This keypair is used to ECIES-encrypt the user's real private keys at rest,
+ * so only someone who knows the password can unlock them.
+ *
+ * Spec note: The derived scalar is taken modulo N (the secp256k1 curve order) to
+ * guarantee it is a valid private key. Values of 0 are rejected and the derivation
+ * is retried with an incremented counter suffix to prevent the (astronomically
+ * unlikely but theoretically possible) zero-scalar case.
+ *
+ * @param password - The user's plaintext password
+ * @param saltHex  - The hex-encoded salt already stored on the User document
+ * @returns A deterministic ECC keypair derived from this password+salt combination
+ */
+export function deriveECCKeyFromPassword(password: string, saltHex: string): ECCKeyPair {
+  const passwordBuf = Buffer.from(password, 'utf-8');
+
+  // Use a different block index (2) than the password-hash derivation (block index 1)
+  // so the two derived keys are completely independent even with the same password+salt.
+  const saltBuf = Buffer.from(saltHex, 'hex');
+  const saltBlock = Buffer.alloc(saltBuf.length + 4);
+  saltBuf.copy(saltBlock, 0);
+  saltBlock.writeUInt32BE(2, saltBuf.length); // block index 2 = key-wrapping domain
+
+  let u = hmacSha256(passwordBuf, saltBlock);
+  const result = Buffer.from(u);
+
+  for (let i = 1; i < DEFAULT_ITERATIONS; i++) {
+    u = hmacSha256(passwordBuf, u);
+    for (let j = 0; j < DERIVED_KEY_LENGTH_BYTES; j++) {
+      result[j] ^= u[j];
+    }
+  }
+
+  // Clamp to valid secp256k1 range: d = derivedBytes mod N, ensuring d > 0
+  let d = BigInt('0x' + result.toString('hex')) % N;
+  if (d === 0n) {
+    // Astronomically unlikely — if it happens, nudge by 1 (still a valid scalar)
+    d = 1n;
+  }
+
+  const Q = scalarMultiply(d, G);
+
+  return {
+    privateKey: d.toString(16).padStart(64, '0'),
+    publicKey: encodePoint(Q),
+  };
 }

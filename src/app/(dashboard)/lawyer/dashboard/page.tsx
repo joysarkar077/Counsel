@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -56,7 +57,7 @@ export default async function LawyerDashboardPage(): Promise<React.ReactNode> {
     Notification.find({ userId }).sort({ createdAt: -1 }).lean()
   ]);
 
-  const eccPrivateKeyHex = user?.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   const tryDecrypt = (
     encryptedJsonStr: string | undefined,

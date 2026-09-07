@@ -28,6 +28,8 @@ export default function LoginPage() {
 
       if (res?.error) {
         if (res.error === '2FA_REQUIRED') {
+          // Store password briefly to unseal private keys during 2FA
+          sessionStorage.setItem('temp_migration_password', data.password as string);
           // Pass email to 2fa page
           router.push(`/verify-2fa?email=${encodeURIComponent(data.email as string)}`);
           return;

@@ -41,13 +41,20 @@ const UserSchema: Schema = new Schema({
   },
   /** RSA-2048 public key JSON { e, n } hex — used for RSA digital signatures */
   rsaPublicKey: { type: String },
-  /** RSA-2048 private key scalar d hex — used for RSA signing */
+  /** RSA-2048 private key scalar d hex — ECIES-sealed with password-derived key (keyVersion≥2) */
   rsaPrivateKey: { type: String },
+  /**
+   * Tracks the private-key storage format.
+   * 1 = legacy plaintext hex (pre-production, migrated transparently on next login)
+   * 2 = ECIES-sealed with a password-derived ECC keypair (production format)
+   */
+  keyVersion: { type: Number, default: 1 },
   role: {
     type: String,
     enum: ['client', 'lawyer', 'admin', 'super_admin'],
     default: 'client',
   },
+
   isActive: {
     type: Boolean,
     default: true, // false for invited users until they accept

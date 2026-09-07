@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import dbConnect from '@/lib/db/mongoose';
 import { Notification } from '@/models/Notification';
 import { User } from '@/models/User';
@@ -22,7 +23,7 @@ export async function GET(req: Request) {
 
     // encryptedPrivateKey is the raw ECC scalar hex.
     // Notification fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
-    const eccPrivKey = user?.encryptedPrivateKey;
+    const { eccPrivateKey: eccPrivKey } = await getDecryptedKeys();
 
     const tryDecrypt = (encJson: string | undefined, fallback: string): string => {
       if (!encJson || !eccPrivKey) return fallback;

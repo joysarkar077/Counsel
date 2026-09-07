@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -30,7 +31,7 @@ export default async function AdminProfilePage() {
 
   // encryptedPrivateKey is the raw ECC scalar hex.
   // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
-  const eccPrivKey = user.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivKey } = await getDecryptedKeys();
 
   const tryDecrypt = (encJson: string | undefined, fallback: string): string => {
     if (!encJson || !eccPrivKey) return fallback;

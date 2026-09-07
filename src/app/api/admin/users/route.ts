@@ -1,3 +1,4 @@
+import { isSealed } from '@/lib/crypto/privateKeyVault';
 import { NextResponse } from 'next/server';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -35,6 +36,7 @@ const getHandler = async function GET(req: Request) {
 
     const userData = users.map(user => {
       const eccPrivKey = user.encryptedPrivateKey;
+      if (eccPrivKey && isSealed(eccPrivKey)) { return { ...user.toObject(), email: "[Encrypted]", contact: "[Encrypted]" }; }
 
       return {
         id: user._id.toString(),

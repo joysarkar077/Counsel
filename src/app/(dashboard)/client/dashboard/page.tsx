@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -37,7 +38,7 @@ export default async function ClientDashboardPage() {
     );
   }
 
-  const eccPrivateKeyHex = userDoc.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   // Helper to safely decrypt ECIES encrypted profile fields
   const tryDecryptProfileField = (encVal: string | undefined, fallback: string): string => {

@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import { notFound, redirect } from 'next/navigation';
 import Link from 'next/link';
 import { cookies, headers } from 'next/headers';
@@ -70,7 +71,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
   }
 
   const user = await User.findById(userId).lean();
-  const eccPrivateKeyHex: string = user?.encryptedPrivateKey ?? '';
+  const { eccPrivateKey: eccPrivateKeyHex, rsaPrivateKey: rsaPrivateKeyFromSession } = await getDecryptedKeys();
 
   /**
    * Step 1: Decrypt the user's accessKey to get the case private scalar.

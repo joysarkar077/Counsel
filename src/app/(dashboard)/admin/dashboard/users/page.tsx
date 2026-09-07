@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import { headers } from 'next/headers';
 import { redirect } from 'next/navigation';
 import dbConnect from '@/lib/db/mongoose';
@@ -24,6 +25,8 @@ export default async function AdminUsersPage() {
     return <div className="p-10 text-red-500">Access Denied.</div>;
   }
 
+  const { eccPrivateKey: adminEccPrivKey } = await getDecryptedKeys();
+
   const rawUsers = await User.find({ role: { $in: ['client', 'lawyer'] } })
     .sort({ createdAt: -1 })
     .lean();
@@ -31,7 +34,7 @@ export default async function AdminUsersPage() {
   const users: AdminUserRow[] = rawUsers.map(u => {
     // encryptedPrivateKey is the raw ECC scalar hex for each user.
     // Profile fields are ECIES-encrypted JSON bundles — use ecc.decryptOrFallback.
-    const eccPrivKey = u.encryptedPrivateKey;
+    const eccPrivKey = adminEccPrivKey; // Decrypted key of the admin
 
     const tryDecryptField = (encJson: string | undefined, fallback: string): string => {
       if (!encJson || !eccPrivKey) return fallback;

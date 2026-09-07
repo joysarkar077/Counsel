@@ -1,3 +1,4 @@
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 import Link from 'next/link';
 import { headers } from 'next/headers';
 import dbConnect from '@/lib/db/mongoose';
@@ -25,7 +26,7 @@ export default async function ClientCasesPage() {
     Case.find({ clientId: userId }).sort({ createdAt: -1 }).lean(),
   ]);
 
-  const eccPrivateKeyHex = userDoc?.encryptedPrivateKey;
+  const { eccPrivateKey: eccPrivateKeyHex } = await getDecryptedKeys();
 
   const tryDecryptCaseField = (
     encryptedJsonStr: string | undefined,

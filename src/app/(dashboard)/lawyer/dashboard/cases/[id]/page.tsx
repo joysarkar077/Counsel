@@ -15,6 +15,7 @@ import { ExhibitsTab } from '@/components/dashboard/cases/case-detail/exhibits-t
 import { MessagesTab } from '@/components/dashboard/cases/case-detail/messages-tab';
 import { LawyerClientAssigner } from '@/components/dashboard/lawyer/LawyerClientAssigner';
 import type { CaseStatus } from '@/types/case';
+import { getDecryptedKeys } from '@/lib/auth/getDecryptedKeys';
 
 interface LawyerCaseDetailPageProps {
   params: Promise<{ id: string }>;
@@ -45,7 +46,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
 
   // Fetch the lawyer's ECC private key for decryption
   const user = await User.findById(userId).lean();
-  const eccPrivateKeyHex: string = user?.encryptedPrivateKey ?? '';
+  const { eccPrivateKey: eccPrivateKeyHex, rsaPrivateKey: rsaPrivateKeyFromSession } = await getDecryptedKeys();
 
   /**
    * Step 1: Decrypt the case access key to obtain the case ECC private scalar.
@@ -167,7 +168,7 @@ export default async function LawyerCaseDetailPage({ params }: LawyerCaseDetailP
               jurisdiction={jurisdiction}
               opposingParty={opposingParty}
               claimValue={claimValue}
-              rsaPrivateKeyHex={user?.rsaPrivateKey ?? ''}
+              rsaPrivateKeyHex={rsaPrivateKeyFromSession}
               rsaPublicKeyJson={user?.rsaPublicKey ?? ''}
             />
           }

@@ -16,6 +16,8 @@ export interface IUser extends Document {
   rsaPublicKey?: string;
   /** RSA-2048 private key scalar d as hex — used for RSA signing */
   rsaPrivateKey?: string;
+  /** Format of stored private keys (1 = raw hex, 2 = password-derived ECIES bundle) */
+  keyVersion?: number;
   role: 'client' | 'lawyer' | 'admin' | 'super_admin';
   isActive: boolean;
   otpHash?: string;

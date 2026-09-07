@@ -4,6 +4,7 @@ import { User } from '../../../../models/User';
 import { generateKeyPair as generateECCKeyPair, encrypt as encryptECIES } from '@/lib/crypto/ecc';
 import { generateKeyPair as generateRSAKeyPair } from '@/lib/crypto/rsa';
 import { hashPassword, generateEmailBlindIndex } from '@/lib/crypto/kdf';
+import { sealPrivateKeys } from '@/lib/crypto/privateKeyVault';
 import { appendEntry } from '@/lib/audit/log';
 
 /**
@@ -42,6 +43,13 @@ export async function POST(req: Request) {
 
     const { hash: passwordHash, salt } = hashPassword(password);
 
+    const { sealedECC, sealedRSA } = sealPrivateKeys(
+      eccKeyPair.privateKey,
+      rsaKeyPair.privateKey.d,
+      password,
+      salt
+    );
+
     await User.create({
       username_enc,
       email_enc,
@@ -50,9 +58,10 @@ export async function POST(req: Request) {
       passwordHash,
       salt,
       publicKey: eccKeyPair.publicKey,
-      encryptedPrivateKey: eccKeyPair.privateKey,
+      encryptedPrivateKey: sealedECC,
       rsaPublicKey: JSON.stringify(rsaKeyPair.publicKey),
-      rsaPrivateKey: rsaKeyPair.privateKey.d,
+      rsaPrivateKey: sealedRSA,
+      keyVersion: 2,
       role: 'super_admin',
       isActive: true,
     });

@@ -54,7 +54,9 @@ function Verify2FAContent() {
 
     try {
       const { signIn } = await import('next-auth/react');
+      const tempPassword = sessionStorage.getItem('temp_migration_password');
       const res = await signIn('credentials', {
+        password: tempPassword || '',
         email,
         otp,
         is2FAPhase: 'true',
@@ -66,6 +68,7 @@ function Verify2FAContent() {
       }
 
       if (res?.ok) {
+        sessionStorage.removeItem('temp_migration_password');
         router.push('/dashboard');
         router.refresh();
       }
