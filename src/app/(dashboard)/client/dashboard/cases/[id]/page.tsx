@@ -162,6 +162,7 @@ export default async function CaseDetailPage({ params }: CaseDetailPageProps) {
             overview={
               <OverviewTab
                 caseId={caseData._id}
+                caseMongoId={caseData._id}
                 status={caseData.status}
                 clientId={caseData.clientId}
                 clientName={clientName}

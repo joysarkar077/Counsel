@@ -16,6 +16,7 @@
 - [7. Frontend Dashboards & Task Workflows](#7-frontend-dashboards--task-workflows)
 - [8. Step-by-Step Data Flow (For Beginners)](#8-step-by-step-data-flow-for-beginners)
 - [9. Step-by-Step File Upload & Retrieval Flow (For Beginners)](#9-step-by-step-file-upload--retrieval-flow-for-beginners)
+- [10. RSA Non-Repudiation: Case Status Change Flow](#10-rsa-non-repudiation-case-status-change-flow)
   - [A. The Lawyer Dashboard (`/lawyer/`)](#a-the-lawyer-dashboard-lawyer)
   - [B. The Client Dashboard (`/client/`)](#b-the-client-dashboard-client)
 
@@ -635,3 +636,256 @@ if (decryptResult.ok) {
 ```
 
 And just like that, the original `id_card.pdf` is safely saved to the lawyer's computer without the server or the CDN ever seeing a single pixel of the document!
+
+---
+
+## 10. RSA Non-Repudiation: Case Status Change Flow
+
+This section documents the complete implementation of the RSA-backed case status change feature. It is the primary use-case of the RSA algorithm in this project and enforces **Non-Repudiation** — making it mathematically impossible for a lawyer to deny that they authorized a critical legal action.
+
+### What is Non-Repudiation?
+Non-repudiation means that once an action has been taken, the actor cannot later claim they did not take it. In the legal domain, this is critical: if a lawyer closes a case and later disputes it, the system can produce an RSA digital signature that **only their private key could have generated**. This is cryptographic proof.
+
+### Architecture Overview
+
+```mermaid
+sequenceDiagram
+    actor L as Lawyer
+    participant UI as Browser (StatusChangeModal)
+    participant API as PATCH /api/cases/[id]/status
+    participant DB as MongoDB
+
+    L->>UI: Clicks "Change Status" → Selects "CLOSE_REQUESTED"
+    L->>UI: Clicks "Confirm & Sign"
+    Note over UI: Constructs message:<br/>"STATE_CHANGE|case_123|ACTIVE|CLOSE_REQUESTED|timestamp"
+    Note over UI: Hashes message with SHA-256
+    Note over UI: Raises hash to power of RSA private key d (mod n)<br/>→ Produces signatureHex
+    UI->>API: PATCH { newStatus, signatureHex, timestamp }
+    API->>DB: Fetches lawyer's rsaPublicKey
+    DB-->>API: Returns rsaPublicKeyJson
+    Note over API: Reconstructs same message string
+    Note over API: Raises signatureHex to power of e (mod n)<br/>→ Recovers hash
+    Note over API: Compares recovered hash to SHA-256(message)
+    API->>DB: Updates status + timeline + recomputes HMAC
+    DB-->>API: Saved
+    API-->>UI: 200 OK { status: "CLOSE_REQUESTED" }
+    Note over UI: Status badge updates live, no page reload
+```
+
+---
+
+### State Machine (Valid Transitions)
+Not all status transitions are legal. The backend enforces the following case lifecycle:
+
+| From Status      | Allowed Next Status(es)             |
+|------------------|--------------------------------------|
+| `PENDING_REVIEW` | `ACTIVE`, `REJECTED`                 |
+| `ACTIVE`         | `CLOSE_REQUESTED`                    |
+| `CLOSE_REQUESTED`| `CLOSED`, `ACTIVE` (reopen)          |
+| `CLOSED`         | *(terminal — no transitions allowed)*|
+| `REJECTED`       | *(terminal — no transitions allowed)*|
+
+```typescript
+// From src/app/api/cases/[id]/status/route.ts
+const ALLOWED_TRANSITIONS: Partial<Record<CaseStatus, readonly CaseStatus[]>> = {
+  PENDING_REVIEW: ['ACTIVE', 'REJECTED'],
+  ACTIVE: ['CLOSE_REQUESTED'],
+  CLOSE_REQUESTED: ['CLOSED', 'ACTIVE'],
+};
+```
+
+---
+
+### Step 1: The Trigger (Frontend — `StatusChangeModal.tsx`)
+The lawyer navigates to a case's Overview tab. Next to the Status badge, a **"Change Status"** button is rendered. This button only appears if `rsaPrivateKeyHex` is passed as a prop (lawyers only; clients never receive this prop so the button is invisible to them).
+
+Clicking opens the modal. The modal's dropdown only shows the valid next states for the current status, preventing illegal transitions from even being attempted.
+
+---
+
+### Step 2: RSA Signing in the Browser
+When the lawyer clicks **"Confirm & Sign"**, the browser executes the following entirely locally, without any network call:
+
+```typescript
+// Inside StatusChangeModal.tsx — handleConfirm()
+
+// 1. Reconstruct the RSA Private Key from the stored hex scalars
+const rsaPublicKey = JSON.parse(rsaPublicKeyJson);  // Parses stored { e, n }
+const rsaPrivateKey: RSAPrivateKey = {
+  d: rsaPrivateKeyHex,  // The private exponent scalar (from DB)
+  n: rsaPublicKey.n,    // The shared modulus
+};
+
+// 2. Call the stateVerification utility — this performs the RSA math
+const { signatureHex, timestamp } = await signStateTransition(
+  caseId,          // e.g. "CASE-001"
+  currentStatus,   // e.g. "ACTIVE"
+  selectedStatus,  // e.g. "CLOSE_REQUESTED"
+  rsaPrivateKey,
+);
+```
+
+Inside `signStateTransition()` in `src/lib/crypto/stateVerification.ts`:
+
+```typescript
+export async function signStateTransition(
+  caseId: string, oldState: string, newState: string, privateKey: RSAPrivateKey
+): Promise<{ signatureHex: string; timestamp: number }> {
+  const timestamp = Date.now();
+
+  // Construct the canonical message string — must match exactly what the server verifies
+  const message = `STATE_CHANGE|${caseId}|${oldState}|${newState}|${timestamp}`;
+
+  // RSA-sign the message: Hash it with SHA-256, then raise hash^d mod n
+  const signatureHex = await sign(message, privateKey);
+
+  return { signatureHex, timestamp };
+}
+```
+
+And inside `sign()` in `src/lib/crypto/rsa.ts`:
+
+```typescript
+export async function sign(message: string, privateKey: RSAPrivateKey): Promise<string> {
+  // 1. Hash the message with SHA-256 to get a fixed-length digest
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
+  const hashHex = Array.from(new Uint8Array(hashBuffer))
+    .map(b => b.toString(16).padStart(2, '0')).join('');
+
+  // 2. Treat the hash as a BigInt
+  const hBig = BigInt('0x' + hashHex);
+  const d = BigInt('0x' + privateKey.d);
+  const n = BigInt('0x' + privateKey.n);
+
+  // 3. RSA Signature: S = H^d mod n
+  //    Only Alice (with her private d) can produce this specific S.
+  return modExp(hBig, d, n).toString(16);
+}
+```
+
+---
+
+### Step 3: Sending the Signed Request (Network)
+The browser sends a `PATCH` request to the dedicated status endpoint. **The lawyer's private key never leaves the browser.** Only the output signature is sent.
+
+```typescript
+const res = await fetch(`/api/cases/${caseMongoId}/status`, {
+  method: 'PATCH',
+  headers: { 'Content-Type': 'application/json' },
+  body: JSON.stringify({
+    newStatus: 'CLOSE_REQUESTED',
+    signatureHex: '4f8a9b2c...', // The RSA signature
+    timestamp: 1725667200000,    // Used to reconstruct the exact message server-side
+  }),
+});
+```
+
+---
+
+### Step 4: Server-Side RSA Verification (Backend — `status/route.ts`)
+The `PATCH /api/cases/[id]/status` API handler performs the following in sequence:
+
+**1. Validate the requested transition is legal:**
+```typescript
+const currentStatus = caseDoc.status as CaseStatus; // e.g. "ACTIVE"
+const allowed = ALLOWED_TRANSITIONS[currentStatus] ?? [];
+
+if (!allowed.includes(newStatus)) {
+  return NextResponse.json({ error: 'Transition not permitted' }, { status: 422 });
+}
+```
+
+**2. Fetch the lawyer's RSA Public Key from MongoDB:**
+```typescript
+const user = await User.findById(userId);
+const rsaPublicKey: RSAPublicKey = JSON.parse(user.rsaPublicKey);
+// rsaPublicKey = { e: "10001", n: "c4a9..." }
+```
+
+**3. Verify the RSA signature:**
+```typescript
+const isValid = await verifyStateTransition(
+  caseId,          // "CASE-001"
+  currentStatus,   // "ACTIVE"
+  newStatus,       // "CLOSE_REQUESTED"
+  timestamp,       // 1725667200000
+  signatureHex,    // "4f8a9b2c..."
+  rsaPublicKey,    // The lawyer's public key from MongoDB
+);
+```
+
+Inside `verifyStateTransition()` in `src/lib/crypto/stateVerification.ts`:
+
+```typescript
+export async function verifyStateTransition(
+  caseId: string, oldState: string, newState: string,
+  timestamp: number, signatureHex: string, publicKey: RSAPublicKey
+): Promise<boolean> {
+  // Reconstruct the exact same canonical message that was signed
+  const message = `STATE_CHANGE|${caseId}|${oldState}|${newState}|${timestamp}`;
+  return await verify(message, signatureHex, publicKey);
+}
+```
+
+Inside `verify()` in `src/lib/crypto/rsa.ts`:
+
+```typescript
+export async function verify(
+  message: string, signatureHex: string, publicKey: RSAPublicKey
+): Promise<boolean> {
+  // 1. Hash the received message independently
+  const hashBuffer = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(message));
+  const expected = BigInt('0x' + toHex(hashBuffer));
+
+  // 2. RSA Verify: recover the hash by raising the signature to e mod n
+  //    Mathematically reverses the signing: S^e mod n = (H^d)^e mod n = H mod n
+  const e = BigInt('0x' + publicKey.e);
+  const n = BigInt('0x' + publicKey.n);
+  const s = BigInt('0x' + signatureHex);
+  const recovered = modExp(s, e, n);
+
+  // 3. If recovered hash === expected hash, the signature is authentic
+  return expected === recovered;
+}
+```
+
+**4. If the signature fails:** Log to the audit trail and return 403 Forbidden:
+```typescript
+if (!isValid) {
+  await appendEntry(userId, 'CASE_STATUS_SIGNATURE_INVALID',
+    `Invalid RSA signature for ${currentStatus}→${newStatus} on case ${caseId}`);
+  return NextResponse.json({ error: 'RSA signature verification failed.' }, { status: 403 });
+}
+```
+
+**5. If the signature is valid:** Update the status, append to timeline, and recompute the HMAC:
+```typescript
+caseDoc.status = newStatus;
+caseDoc.timeline.push({ action: `Status changed from ${currentStatus} to ${newStatus}`, actorId: userId });
+
+// Re-seal the HMAC to maintain tamper-evidence after the update
+const hmacPayload = [caseDoc.clientId, caseDoc.title_enc, /* ...all _enc fields */].join('|');
+caseDoc.hmac = generateHMAC(process.env.SERVER_SECRET, hmacPayload);
+await caseDoc.save();
+
+await appendEntry(userId, 'CASE_STATUS_CHANGED',
+  `Changed case ${caseId} from ${currentStatus} to ${newStatus} (RSA-signed)`);
+```
+
+---
+
+### Step 5: Live Badge Update (Frontend)
+Upon receiving a `200 OK`, the `onSuccess` callback is fired with the new status string. Because the status is managed by `useState` inside `OverviewTab`, the badge updates **instantly and in-place** without triggering a full page reload:
+
+```typescript
+// Inside OverviewTab — status is local React state
+const [status, setStatus] = useState<CaseStatus>(initialStatus);
+
+// ...passed to the modal as:
+<StatusChangeModal
+  onSuccess={(newStatus) => setStatus(newStatus)}
+/>
+```
+
+The badge color, label, and available transitions in the dropdown all automatically react to the new state value.
+
